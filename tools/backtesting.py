@@ -7,7 +7,7 @@ import base_tool
 import pandas as pd
 
 
-def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy_class, param_dict):
+def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy, param_dict):
     """
     多天回测函数
     
@@ -44,7 +44,7 @@ def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy_class, param
             if os.path.exists(data_file):
                 os.remove(data_file)
             
-            strategy = strategy_class(param_dict)
+           
             
             position_dict = {}
             for snap in snap_list:
