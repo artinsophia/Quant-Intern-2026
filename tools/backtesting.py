@@ -15,8 +15,6 @@ def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy, param_dict)
         instrument_id: 合约ID，如 '511520'
         start_ymd: 开始日期，如 '20260319'
         end_ymd: 结束日期，如 '20260325'
-        strategy_class: 策略类，如 StrategyDemo
-        param_dict: 策略参数字典
     
     Returns:
         多天回测结果DataFrame
