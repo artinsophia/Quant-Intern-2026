@@ -5,3 +5,7 @@
 ## [2026-3-30]
 ### 1. Build backtesting function and calculate profits in two months
 ### 2. With long window 3600 、 short window 1800 and threshold 0 , the model performs best and 511520 profit per day is 4.24 , 511090 is 2.97 , 518880 is 2.09
+
+## [2026-3-31]
+### 1. Build machine learning structure.
+### 1. Use XGBoost to predict confidence of tactics , but it shows no good alpha no profits
