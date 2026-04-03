@@ -9,3 +9,7 @@
 ## [2026-3-31]
 ### 1. Build machine learning structure.
 ### 1. Use XGBoost to predict confidence of tactics , but it shows no good alpha no profits
+
+## [2026-4-3]
+### 1. MA is wrong total
+### 2. Combie basic model with high reacall and meta model with high accuracy is right 

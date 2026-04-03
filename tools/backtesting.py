@@ -21,6 +21,8 @@ def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy, param_dict)
     Returns:
         多天回测结果DataFrame
     """
+
+    
     start_date = datetime.strptime(start_ymd, '%Y%m%d')
     end_date = datetime.strptime(end_ymd, '%Y%m%d')
     
@@ -78,10 +80,6 @@ def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy, param_dict)
     if result_df is not None and len(result_df) > 0:
         import matplotlib.pyplot as plt
         import matplotlib.dates as mdates
-        
-        # 设置中文字体（避免标签乱码）
-        plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans']
-        plt.rcParams['axes.unicode_minus'] = False
         
         # 准备数据
         result_df['trade_date'] = pd.to_datetime(result_df['trade_ymd'], format='%Y%m%d')
