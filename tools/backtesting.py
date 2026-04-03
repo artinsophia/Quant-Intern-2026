@@ -15,6 +15,8 @@ def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy, param_dict)
         instrument_id: 合约ID，如 '511520'
         start_ymd: 开始日期，如 '20260319'
         end_ymd: 结束日期，如 '20260325'
+        strategy: 策略对象
+        param_dict: 策略参数字典，需包含 'name' 键
     
     Returns:
         多天回测结果DataFrame
@@ -41,8 +43,6 @@ def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy, param_dict)
             data_file = f'/home/jovyan/work/backtest_result/{instrument_id}_{trade_ymd}_{strategy_name}.pkl'
             if os.path.exists(data_file):
                 os.remove(data_file)
-            
-           
             
             position_dict = {}
             for snap in snap_list:
@@ -72,6 +72,53 @@ def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy, param_dict)
     cols = ['trade_ymd'] + [c for c in result_df.columns if c != 'trade_ymd']
     result_df = result_df[cols]
 
+    
+    
+    # ==================== 绘制累计收益图 ====================
+    if result_df is not None and len(result_df) > 0:
+        import matplotlib.pyplot as plt
+        import matplotlib.dates as mdates
+        
+        # 设置中文字体（避免标签乱码）
+        plt.rcParams['font.sans-serif'] = ['SimHei', 'DejaVu Sans']
+        plt.rcParams['axes.unicode_minus'] = False
+        
+        # 准备数据
+        result_df['trade_date'] = pd.to_datetime(result_df['trade_ymd'], format='%Y%m%d')
+        result_df = result_df.sort_values('trade_date')
+        cumulative_profit = result_df['profits'].cumsum()
+        
+        # 创建图形
+        plt.figure(figsize=(12, 6))
+        plt.plot(result_df['trade_date'], cumulative_profit, 
+                 marker='o', linestyle='-', linewidth=2, markersize=4, color='#2E86AB')
+        plt.axhline(y=0, color='gray', linestyle='--', linewidth=1)
+        
+        # 正负区域填充
+        plt.fill_between(result_df['trade_date'], 0, cumulative_profit, 
+                         where=(cumulative_profit >= 0), color='#A3C4BC', alpha=0.3, interpolate=True)
+        plt.fill_between(result_df['trade_date'], 0, cumulative_profit, 
+                         where=(cumulative_profit < 0), color='#D95F5F', alpha=0.3, interpolate=True)
+        
+        # 标签和标题
+        strategy_name = param_dict.get('name', 'strategy')
+        plt.title(f'{instrument_id}  {strategy_name} cumulative ({start_ymd} ~ {end_ymd})', fontsize=14)
+        plt.xlabel('date', fontsize=12)
+        plt.ylabel('cumulative profit', fontsize=12)
+        plt.grid(True, alpha=0.3)
+        plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m-%d'))
+        plt.gcf().autofmt_xdate()  # 自动旋转日期标签
+        
+        # 标注最后一个点
+        last_date = result_df['trade_date'].iloc[-1]
+        last_cum = cumulative_profit.iloc[-1]
+        plt.annotate(f'{last_cum:.2f}', xy=(last_date, last_cum), xytext=(5, 5), 
+                     textcoords='offset points', fontsize=10, fontweight='bold')
+        
+        plt.show()
+        
+    # ======================================================
+    
     return result_df
 
 
