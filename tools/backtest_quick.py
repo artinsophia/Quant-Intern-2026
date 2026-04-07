@@ -123,6 +123,15 @@ def backtest_quick(
         if price_last <= 0:
             continue
 
+        # 提前5分钟平仓：如果是最后300个样本，强制平仓
+        if i >= len(snap_df) - 300 and current_position != 0:
+            # 强制平仓，修改position_change
+            position_change = -current_position
+            # 更新DataFrame中的position_change值
+            snap_df.at[i, "position_change"] = position_change
+            # 更新position为0
+            snap_df.at[i, "position"] = 0
+
         # 计算对手价（考虑买卖方向）
         if position_change > 0:  # 开多或加多
             # 买入：使用卖一价（ask price）
@@ -142,8 +151,8 @@ def backtest_quick(
         # 记录交易
         if position_change != 0 and trade_price > 0:
             snap_df.at[i, "trade_price"] = trade_price
-            # 仓位变化量乘以基础交易量
-            trade_volume = abs(position_change) * base_volume
+            # 仓位变化量（直接使用变化值，不乘以基础交易量）
+            trade_volume = abs(position_change)
             snap_df.at[i, "trade_volume"] = trade_volume
 
             # 计算交易成本
@@ -151,9 +160,9 @@ def backtest_quick(
             commission = trade_value * commission_rate
             snap_df.at[i, "trade_cost"] = commission
 
-            # 更新持仓和成本（考虑基础交易量）
-            position_change_volume = position_change * base_volume
-            current_position_volume = current_position * base_volume
+            # 更新持仓和成本（直接使用仓位值，不考虑基础交易量）
+            position_change_volume = position_change
+            current_position_volume = current_position
 
             if current_position * position_change >= 0:  # 同向加仓
                 # 计算新的平均成本
@@ -192,9 +201,9 @@ def backtest_quick(
 
         # 更新当前仓位
         current_position = row["position"]
-        current_position_volume = current_position * base_volume
+        current_position_volume = current_position
 
-        # 计算未实现盈亏（考虑基础交易量）
+        # 计算未实现盈亏（直接使用仓位值）
         if current_position != 0 and price_last > 0:
             if current_position > 0:  # 多头持仓
                 unrealized = current_position_volume * (price_last - avg_cost)
@@ -207,7 +216,7 @@ def backtest_quick(
             total_realized_pnl + snap_df.at[i, "unrealized_pnl"]
         )
 
-        # 计算持仓市值（考虑基础交易量）
+        # 计算持仓市值（直接使用仓位值）
         if current_position != 0 and price_last > 0:
             snap_df.at[i, "position_value"] = abs(current_position_volume) * price_last
 
@@ -239,8 +248,8 @@ def backtest_quick(
             "price_last": 0,
             "position": current_position,
             "trade_price": 0,
-            "trade_volume": result_df["position_change"].abs().sum()
-            if "position_change" in result_df.columns
+            "trade_volume": result_df["trade_volume"].sum()
+            if "trade_volume" in result_df.columns
             else 0,
             "trade_cost": result_df["trade_cost"].sum()
             if "trade_cost" in result_df.columns

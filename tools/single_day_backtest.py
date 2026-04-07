@@ -261,6 +261,8 @@ def single_day_backtest(
         final_pnl = (
             profit_df["profits"].iloc[-1] if "profits" in profit_df.columns else 0
         )
+        # 乘以100，因为backtest_quick.py中的盈亏是以1股为单位计算的，但实际交易是100股
+        final_pnl *= 100
         avg_trade_pnl = final_pnl / complete_trades if complete_trades > 0 else 0
 
         summary_text = (
@@ -556,6 +558,8 @@ def plot_enhanced_backtest(
 
     if result["profit_df"] is not None and "profits" in result["profit_df"].columns:
         profit_data = result["profit_df"]["profits"].values
+        # 乘以100，因为backtest_quick.py中的盈亏是以1股为单位计算的，但实际交易是100股
+        profit_data = profit_data * 100
         cumulative_pnl = np.cumsum(profit_data)
 
         # 绘制累计盈亏曲线
@@ -640,7 +644,12 @@ def plot_enhanced_backtest(
 
     # 添加总体统计信息
     if segments:
-        total_pnl = sum(seg["pnl"] for seg in segments)
+        # 优先使用profit_df中的盈亏数据（已乘以100）
+        if result["profit_df"] is not None and "profits" in result["profit_df"].columns:
+            total_pnl = result["profit_df"]["profits"].sum() * 100
+        else:
+            total_pnl = sum(seg["pnl"] for seg in segments)
+
         winning_trades = sum(1 for seg in segments if seg["pnl"] > 0)
         losing_trades = sum(1 for seg in segments if seg["pnl"] < 0)
         win_rate = winning_trades / len(segments) * 100 if segments else 0
