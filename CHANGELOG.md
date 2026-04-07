@@ -12,4 +12,8 @@
 
 ## [2026-4-3]
 ### 1. MA is wrong total
-### 2. Combie basic model with high reacall and meta model with high accuracy is right 
+### 2. Combie basic model with high reacall and meta model with high accuracy is right
+
+## [2026-4-7]
+### 1. Build my backtest
+### 2.Looking for good parameters
