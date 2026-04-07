@@ -28,7 +28,7 @@ tactics_demo/
 
 ## External Dependencies
 
-- **`base_tool`** module at `/home/jovyan/work/base_demo` — CRITICAL: provides `snap_list_load()` and `backtest_quick()`
+- **`base_tool`** module at `/home/jovyan/base_demo` — CRITICAL: provides `snap_list_load()` and `backtest_quick()`
 - Python packages: `pandas`, `numpy`, `matplotlib`, `mplfinance`, `xgboost`, `scikit-learn`, `joblib`, `scipy`
 - Output directory: `/home/jovyan/work/backtest_result/` for pickle result files
 
@@ -54,7 +54,7 @@ snap = {
 }
 ```
 
-**Instruments:** 511520, 511090, 518880 (primary); also 511100, 511130, 511260, 518850
+**Instruments:** 511520, 511090, 518880 (primary)
 
 ## Strategy Class Interface
 
