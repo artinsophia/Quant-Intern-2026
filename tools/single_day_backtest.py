@@ -71,7 +71,7 @@ def single_day_backtest(
         # 标注盈亏（如果持仓段足够长）
         if seg["position"] != 0 and seg["end_idx"] - seg["start_idx"] > 10:
             mid_idx = (seg["start_idx"] + seg["end_idx"]) // 2
-            pnl_text = f"{seg['pnl']:.3f}"
+            pnl_text = f"{seg['pnl']*100:.3f}"
             ax.text(
                 mid_idx,
                 price_history[mid_idx],
@@ -120,15 +120,15 @@ def single_day_backtest(
     from matplotlib.patches import Patch
 
     legend_elements = [
-        Patch(facecolor="green", alpha=0.3, label="Long Position"),
-        Patch(facecolor="red", alpha=0.3, label="Short Position"),
+        Patch(facecolor="red", alpha=0.3, label="Long Position"),
+        Patch(facecolor="green", alpha=0.3, label="Short Position"),
         Patch(facecolor="gray", alpha=0.3, label="No Position"),
         plt.Line2D(
             [0],
             [0],
             marker="^",
             color="w",
-            markerfacecolor="green",
+            markerfacecolor="red",
             markeredgecolor="black",
             markersize=10,
             label="Open Long",
@@ -138,7 +138,7 @@ def single_day_backtest(
             [0],
             marker="v",
             color="w",
-            markerfacecolor="red",
+            markerfacecolor="green",
             markeredgecolor="black",
             markersize=10,
             label="Open Short",
@@ -166,8 +166,7 @@ def single_day_backtest(
         stats_text = (
             f"Total P&L: {total_pnl:.2f} | "
             f"Avg P&L/Trade: {avg_pnl_per_trade:.2f} | "
-            f"Trade Count: {trade_count} | "
-            f"Strategy: {strategy_name}"
+            f"Trade Count: {trade_count}"
         )
         fig.text(
             0.02,
@@ -196,9 +195,9 @@ def single_day_backtest(
 def get_position_color(position):
     """根据持仓状态返回颜色"""
     if position == 1:  # 多头
-        return "green"
-    elif position == -1:  # 空头
         return "red"
+    elif position == -1:  # 空头
+        return "green"
     else:  # 空仓
         return "gray"
 
@@ -293,15 +292,15 @@ def plot_enhanced_backtest(
     from matplotlib.patches import Patch
 
     legend_elements = [
-        Patch(facecolor="green", alpha=0.3, label="Long Position"),
-        Patch(facecolor="red", alpha=0.3, label="Short Position"),
+        Patch(facecolor="red", alpha=0.3, label="Long Position"),
+        Patch(facecolor="green", alpha=0.3, label="Short Position"),
         Patch(facecolor="gray", alpha=0.3, label="No Position"),
         plt.Line2D(
             [0],
             [0],
             marker="^",
             color="w",
-            markerfacecolor="green",
+            markerfacecolor="red",
             markeredgecolor="black",
             markersize=8,
             label="Open Long",
@@ -311,7 +310,7 @@ def plot_enhanced_backtest(
             [0],
             marker="v",
             color="w",
-            markerfacecolor="red",
+            markerfacecolor="green",
             markeredgecolor="black",
             markersize=8,
             label="Open Short",
@@ -346,10 +345,15 @@ def plot_enhanced_backtest(
             cumulative_pnl,
             where=(cumulative_pnl >= 0),
             alpha=0.2,
-            color="green",
+            color="red",
         )
         ax2.fill_between(
-            x_pnl, 0, cumulative_pnl, where=(cumulative_pnl < 0), alpha=0.2, color="red"
+            x_pnl,
+            0,
+            cumulative_pnl,
+            where=(cumulative_pnl < 0),
+            alpha=0.2,
+            color="green",
         )
 
         ax2.axhline(y=0, color="black", linestyle="--", linewidth=0.8)
