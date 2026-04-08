@@ -71,13 +71,19 @@ class StrategyDemo:
             self.max_favorable_price = max(self.max_favorable_price, price)
             pullback = (self.max_favorable_price - price) / self.max_favorable_price
             if pullback >= dynamic_pct:
-                current_signal = 0
+                if prob is not None and prob > self.close_confidence:
+                    current_signal = 1
+                else:
+                    current_signal = 0
 
         elif self.position_last == -1:
             self.max_favorable_price = min(self.max_favorable_price, price)
             pullback = (price - self.max_favorable_price) / self.max_favorable_price
             if pullback >= dynamic_pct:
-                current_signal = 0
+                if prob is not None and prob > self.close_confidence:
+                    current_signal = -1
+                else:
+                    current_signal = 0
 
         if self.position_last == 0:
             if std_delta > self.open_threshold:
@@ -91,7 +97,7 @@ class StrategyDemo:
                 self.prev_signal = 0
                 self.max_favorable_price = 0
             else:
-                if prob is not None and prob > self.confidence_threshold:
+                if prob is not None and prob > self.open_confidence:
                     self.position_last = current_signal
                     self.prev_signal = current_signal
                     self.max_favorable_price = price
