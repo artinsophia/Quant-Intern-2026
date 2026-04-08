@@ -77,9 +77,6 @@ def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy, param_dict)
 
         except (SystemExit, Exception) as e:
             print(f"日期 {trade_ymd} 出错: {e}")
-            import traceback
-
-            traceback.print_exc()
             # 继续处理下一天
             pass
 
@@ -123,7 +120,7 @@ def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy, param_dict)
     )
 
     plt.axhline(y=0, color="black", linestyle="--", alpha=0.5)
-    plt.title(f"{instrument_id} 多日回测累计盈亏 ({start_ymd}-{end_ymd})")
+    plt.title(f"{instrument_id} cumulative profits ({start_ymd}-{end_ymd})")
     plt.grid(True, alpha=0.2)
     plt.gca().xaxis.set_major_formatter(mdates.DateFormatter("%m-%d"))
     plt.show()
