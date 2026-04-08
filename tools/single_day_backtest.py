@@ -377,7 +377,7 @@ def plot_enhanced_backtest(
     if profit_df is not None:
         total_pnl = profit_df["profits"].iloc[-1]
         # 统计成交次数：仓位变动次数
-        trade_count = (profit_df["position"].diff().fillna(0) != 0).sum()
+        trade_count = ((profit_df['position'].shift(1).fillna(0) == 0) & (profit_df['position'] != 0)).sum()
 
         stats_text = (
             f"Total P&L: {total_pnl:.2f} | "

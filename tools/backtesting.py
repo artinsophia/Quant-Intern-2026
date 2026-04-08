@@ -61,7 +61,7 @@ def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy, param_dict)
                 last_row = profit_df.iloc[[-1]].copy()
 
                 # 统计当日交易次数 (仓位变动次数)
-                trade_count = (profit_df["position"].diff().fillna(0) != 0).sum()
+                trade_count = ((profit_df['position'].shift(1).fillna(0) == 0) & (profit_df['position'] != 0)).sum()
 
                 # 构造当日摘要
                 day_data = {
