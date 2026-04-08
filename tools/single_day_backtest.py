@@ -160,7 +160,7 @@ def single_day_backtest(
     if profit_df is not None and "profits" in profit_df.columns:
         total_pnl = profit_df["profits"].iloc[-1]
         # 统计成交次数：仓位变动次数
-        trade_count = (profit_df["position"].diff().fillna(0) != 0).sum()
+        trade_count =  ((profit_df['position'].shift(1).fillna(0) == 0) & (profit_df['position'] != 0)).sum()
         avg_pnl_per_trade = total_pnl / max(trade_count, 1) if trade_count > 0 else 0
 
         stats_text = (

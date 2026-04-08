@@ -42,8 +42,8 @@ def backtest_quick(instrument_id, trade_ymd, strategy_name, position_dict, remak
 
     # 5. 【核心计算】盈亏与费用
     base_volume = 100        # 每手股数
-    slippage_price = 0.00  # 固定滑点(价格绝对值，如1分钱)
-    fee_rate = 0.000    # 手续费率 0.03%
+    slippage_price = 0.00  # 暂时不考虑
+    fee_rate = 0.000    # 暂时不考虑
 
     # A. 计算价格变动产生的收益 (当前持仓 * 下一刻价格变动)
     # 使用 shift(1) 是因为这秒的价格变动是由上一秒持有的仓位决定的
@@ -81,8 +81,9 @@ def backtest_summary_quick(result_df):
     # 注意：累计盈亏直接取最后一行，不要再 sum() 了！
     final_profit = result_df['profits'].iloc[-1]
     
-    # 统计交易次数：仓位不等于前一时刻的次数
-    trade_count = (result_df['position'].diff().fillna(0) != 0).sum()
+    # 统计从 0 变为非 0 的次数（开仓）
+    trade_count = ((result_df['position'].shift(1).fillna(0) == 0) & (result_df['position'] != 0)).sum()
+
     
     summary = {
         "总成交次数": int(trade_count),
