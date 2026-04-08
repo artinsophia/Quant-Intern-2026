@@ -9,6 +9,7 @@ import matplotlib.dates as mdates
 sys.path.append("/home/jovyan/work/base_demo")
 try:
     import base_tool
+
     BASE_TOOL_AVAILABLE = True
 except ImportError:
     BASE_TOOL_AVAILABLE = False
@@ -25,7 +26,7 @@ def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy, param_dict)
     start_date = datetime.strptime(start_ymd, "%Y%m%d")
     end_date = datetime.strptime(end_ymd, "%Y%m%d")
     strategy_name = param_dict.get("name", "strategy")
-    
+
     all_day_summaries = []
     current_date = start_date
 
@@ -34,12 +35,14 @@ def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy, param_dict)
         try:
             # 1. 加载快照
             if not BASE_TOOL_AVAILABLE:
-                current_date += timedelta(days=1); continue
-            
+                current_date += timedelta(days=1)
+                continue
+
             snap_list = base_tool.snap_list_load(instrument_id, trade_ymd)
             if not snap_list:
                 print(f"日期 {trade_ymd} 无数据，跳过")
-                current_date += timedelta(days=1); continue
+                current_date += timedelta(days=1)
+                continue
 
             # 2. 生成信号
             position_dict = {}
@@ -56,22 +59,29 @@ def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy, param_dict)
                 # 4. 提取当日最终状态
                 # 新版 profits 已经是累加好的，最后一行即当日总盈亏
                 last_row = profit_df.iloc[[-1]].copy()
-                
+
                 # 统计当日交易次数 (仓位变动次数)
-                trade_count = (profit_df['position'].diff().fillna(0) != 0).sum()
-                
+                trade_count = (profit_df["position"].diff().fillna(0) != 0).sum()
+
                 # 构造当日摘要
                 day_data = {
                     "trade_ymd": trade_ymd,
                     "profits": last_row["profits"].values[0],
                     "trades": int(trade_count),
-                    "final_pos": last_row["position"].values[0]
+                    "final_pos": last_row["position"].values[0],
                 }
                 all_day_summaries.append(day_data)
-                print(f"日期 {trade_ymd} 完成，盈亏: {day_data['profits']:.2f}, 成交: {day_data['trades']}次")
-            
-        except Exception as e:
+                print(
+                    f"日期 {trade_ymd} 完成，盈亏: {day_data['profits']:.2f}, 成交: {day_data['trades']}次"
+                )
+
+        except (SystemExit, Exception) as e:
             print(f"日期 {trade_ymd} 出错: {e}")
+            import traceback
+
+            traceback.print_exc()
+            # 继续处理下一天
+            pass
 
         current_date += timedelta(days=1)
 
@@ -86,11 +96,32 @@ def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy, param_dict)
     # 6. 绘制累计收益图
     plt.figure(figsize=(12, 6))
     cum_profit = result_df["profits"].cumsum()
-    
-    plt.plot(result_df["trade_date"], cum_profit, marker="o", markersize=4, linewidth=2, color="#2E86AB")
-    plt.fill_between(result_df["trade_date"], 0, cum_profit, where=(cum_profit >= 0), color="green", alpha=0.1)
-    plt.fill_between(result_df["trade_date"], 0, cum_profit, where=(cum_profit < 0), color="red", alpha=0.1)
-    
+
+    plt.plot(
+        result_df["trade_date"],
+        cum_profit,
+        marker="o",
+        markersize=4,
+        linewidth=2,
+        color="#2E86AB",
+    )
+    plt.fill_between(
+        result_df["trade_date"],
+        0,
+        cum_profit,
+        where=(cum_profit >= 0),
+        color="green",
+        alpha=0.1,
+    )
+    plt.fill_between(
+        result_df["trade_date"],
+        0,
+        cum_profit,
+        where=(cum_profit < 0),
+        color="red",
+        alpha=0.1,
+    )
+
     plt.axhline(y=0, color="black", linestyle="--", alpha=0.5)
     plt.title(f"{instrument_id} 多日回测累计盈亏 ({start_ymd}-{end_ymd})")
     plt.grid(True, alpha=0.2)
@@ -111,10 +142,10 @@ def backtest_summary(daily_df):
     total_profits = daily_df["profits"].sum()
     total_trades = daily_df["trades"].sum()
     total_days = len(daily_df)
-    
+
     win_days = daily_df[daily_df["profits"] > 0]
     loss_days = daily_df[daily_df["profits"] < 0]
-    
+
     # 盈亏比计算
     avg_win = win_days["profits"].mean() if len(win_days) > 0 else 0
     avg_loss = abs(loss_days["profits"].mean()) if len(loss_days) > 0 else 0
@@ -129,7 +160,9 @@ def backtest_summary(daily_df):
         "盈亏比(日均)": round(profit_factor, 2),
         "最大单日盈利": round(daily_df["profits"].max(), 2),
         "最大单日亏损": round(daily_df["profits"].min(), 2),
-        "每笔交易平均盈利": round(total_profits / total_trades, 2) if total_trades > 0 else 0
+        "每笔交易平均盈利": round(total_profits / total_trades, 2)
+        if total_trades > 0
+        else 0,
     }
 
     return summary

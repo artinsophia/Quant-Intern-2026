@@ -42,8 +42,8 @@ def backtest_quick(instrument_id, trade_ymd, strategy_name, position_dict, remak
 
     # 5. 【核心计算】盈亏与费用
     base_volume = 100        # 每手股数
-    slippage_price = 0.001   # 固定滑点(价格绝对值，如1分钱)
-    fee_rate = 0.0003        # 手续费率 0.03%
+    slippage_price = 0.00  # 固定滑点(价格绝对值，如1分钱)
+    fee_rate = 0.000    # 手续费率 0.03%
 
     # A. 计算价格变动产生的收益 (当前持仓 * 下一刻价格变动)
     # 使用 shift(1) 是因为这秒的价格变动是由上一秒持有的仓位决定的

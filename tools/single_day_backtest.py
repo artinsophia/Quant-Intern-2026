@@ -156,6 +156,27 @@ def single_day_backtest(
     ]
     ax.legend(handles=legend_elements, loc="upper left")
 
+    # --- 添加左下角统计信息 ---
+    if profit_df is not None and "profits" in profit_df.columns:
+        total_pnl = profit_df["profits"].iloc[-1]
+        # 统计成交次数：仓位变动次数
+        trade_count = (profit_df["position"].diff().fillna(0) != 0).sum()
+        avg_pnl_per_trade = total_pnl / max(trade_count, 1) if trade_count > 0 else 0
+
+        stats_text = (
+            f"Total P&L: {total_pnl:.2f} | "
+            f"Avg P&L/Trade: {avg_pnl_per_trade:.2f} | "
+            f"Trade Count: {trade_count} | "
+            f"Strategy: {strategy_name}"
+        )
+        fig.text(
+            0.02,
+            0.02,
+            stats_text,
+            fontsize=12,
+            bbox=dict(boxstyle="round", facecolor="lightblue", alpha=0.5),
+        )
+
     plt.tight_layout()
 
     # 统计信息同步
