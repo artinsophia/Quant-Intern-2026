@@ -36,10 +36,6 @@ class FeatureExtractor:
         return (np.nan, 0)
 
     @property
-    def price_last(self) -> float:
-        return self.last.get("price_last", np.nan)
-
-    @property
     def best_bid(self) -> float:
         return self._safe_get_level(self.bid_book)[0]
 
@@ -52,7 +48,7 @@ class FeatureExtractor:
         bid, ask = self.best_bid, self.best_ask
         if np.isnan(bid) or np.isnan(ask):
             return np.nan
-        return ask - bid
+        return (ask - bid) / bid 
 
     @property
     def volatility(self) -> float:
@@ -104,10 +100,11 @@ class FeatureExtractor:
             - self.snap_slice[-self.short_window]["num_trades"]
         )
         return num / self.short_window if num > 0 else 0.0
+    
+
 
     def extract_all(self) -> Dict[str, Any]:
         return {
-            "price_last": self.price_last,
             "num_trades": self.last.get("num_trades", 0),
             "best_bid": self.best_bid,
             "best_ask": self.best_ask,
