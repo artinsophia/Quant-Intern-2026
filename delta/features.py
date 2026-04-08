@@ -101,7 +101,36 @@ class FeatureExtractor:
         )
         return num / self.short_window if num > 0 else 0.0
     
+    @property
+    def alpha_05(self) -> float:
+        buys = sum(len(row["buy_trade"]) for row in self.snap_slice[-self.short_window:])
+        sells = sum(len(row["sell_trade"]) for row in self.snap_slice[-self.short_window:])
+        return (buys - sells) / (buys + sells + 1e-9)
+    
+    @property
+    def alpha_06(self) -> float:
+        if len(self.snap_slice) < self.short_window:
+            return 0.0
 
+        start_price = self.snap_slice[-self.short_window].get("price_last")
+        end_price = self.snap_slice[-1].get("price_last")
+        
+        if start_price is None or end_price is None or start_price == 0:
+            return 0.0
+            
+        price_diff = abs(end_price - start_price) / start_price 
+        total_vol = self.bid_volume_short + self.ask_volume_short
+        
+        return price_diff / total_vol if total_vol > 0 else 0.0
+    
+    @property
+    def alpha_07(self) -> float:
+        total_vol = self.bid_volume_short + self.ask_volume_short
+        if total_vol == 0:
+            return 0.0
+        
+        oi = abs(self.bid_volume_short - self.ask_volume_short)
+        return oi / total_vol
 
     def extract_all(self) -> Dict[str, Any]:
         return {
@@ -115,6 +144,9 @@ class FeatureExtractor:
             "alpha_02": self.alpha_02,
             "alpha_03": self.alpha_03,
             "alpha_04": self.alpha_04,
+            "alpha_05": self.alpha_05,
+            "alpha_06": self.alpha_06,
+            "alpha_07": self.alpha_07,
         }
 
 
