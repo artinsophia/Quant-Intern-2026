@@ -119,86 +119,68 @@ def backtest_quick(
         position_change = row["position_change"]
         price_last = row["price_last"]
 
-        # 跳过无效价格
-        if price_last <= 0:
-            continue
+        if price_last <= 0: continue
 
-        # 提前5分钟平仓：如果是最后300个样本，强制平仓
+        # 1. 强制平仓逻辑 (保持不变)
         if i >= len(snap_df) - 300 and current_position != 0:
-            # 强制平仓，修改position_change
             position_change = -current_position
-            # 更新DataFrame中的position_change值
             snap_df.at[i, "position_change"] = position_change
-            # 更新position为0
             snap_df.at[i, "position"] = 0
 
-        # 计算对手价（考虑买卖方向）
-        if position_change > 0:  # 开多或加多
-            # 买入：使用卖一价（ask price）
+        # 2. 计算交易价格 (修正缩进)
+        trade_price = 0.0
+        if position_change > 0:  # 买入
             if "ask_book" in row and row["ask_book"] and len(row["ask_book"]) > 0:
-                trade_price = row["ask_book"][0][0]  # 卖一价
+                trade_price = row["ask_book"][0][0]
             else:
-                trade_price = price_last * (1 + slippage)  # 无订单簿时使用最新价加滑点
-        elif position_change < 0:  # 开空或加空（或平多）
-            # 卖出：使用买一价（bid price）
+                trade_price = price_last * (1 + slippage)
+        elif position_change < 0:  # 卖出
             if "bid_book" in row and row["bid_book"] and len(row["bid_book"]) > 0:
-                trade_price = row["bid_book"][0][0]  # 买一价
+                trade_price = row["bid_book"][0][0]
             else:
-                trade_price = price_last * (1 - slippage)  # 无订单簿时使用最新价减滑点
-        else:
-            trade_price = 0.0
+                trade_price = price_last * (1 - slippage)
 
-            # 记录交易
-            trade_volume = 0  # 初始化trade_volume
-            if position_change != 0 and trade_price > 0:
-                snap_df.at[i, "trade_price"] = trade_price
-                # 仓位变化量（乘以基础交易量）
-                trade_volume = abs(position_change) * base_volume
-                snap_df.at[i, "trade_volume"] = trade_volume
-
-            # 计算交易成本
-            trade_value = trade_volume * trade_price
-            commission = trade_value * commission_rate
+        # 3. 执行交易记录 (修正缩进：移出 else)
+        if position_change != 0 and trade_price > 0:
+            trade_volume = abs(position_change) * base_volume
+            snap_df.at[i, "trade_price"] = trade_price
+            snap_df.at[i, "trade_volume"] = trade_volume
+            
+            commission = trade_volume * trade_price * commission_rate
             snap_df.at[i, "trade_cost"] = commission
 
-            # 更新持仓和成本（考虑基础交易量）
-            position_change_volume = position_change * base_volume
-            current_position_volume = current_position * base_volume
+            # 4. 更新持仓成本和已实现盈亏 (优化逻辑)
+            pos_change_vol = position_change * base_volume
+            curr_pos_vol = current_position * base_volume
 
-            if current_position * position_change >= 0:  # 同向加仓
-                # 计算新的平均成本
-                total_value = (
-                    abs(current_position_volume) * avg_cost
-                    + abs(position_change_volume) * trade_price
-                )
-                new_position_volume = current_position_volume + position_change_volume
-                if new_position_volume != 0:
-                    avg_cost = total_value / abs(new_position_volume)
+            # 判断是加仓还是减仓/反向
+            if curr_pos_vol * pos_change_vol >= 0: # 加仓
+                new_pos_vol = curr_pos_vol + pos_change_vol
+                if new_pos_vol != 0:
+                    avg_cost = (abs(curr_pos_vol) * avg_cost + abs(pos_change_vol) * trade_price) / abs(new_pos_vol)
                 else:
-                    avg_cost = 0.0
-            else:  # 反向交易（平仓或反向开仓）
-                # 计算已实现盈亏
-                close_volume = min(
-                    abs(current_position_volume), abs(position_change_volume)
-                )
-                if current_position > 0:  # 平多
-                    realized = close_volume * (trade_price - avg_cost)
-                else:  # 平空
-                    realized = close_volume * (avg_cost - trade_price)
-
+                    avg_cost = 0
+            else: # 减仓或反向
+                close_vol = min(abs(curr_pos_vol), abs(pos_change_vol))
+                realized = close_vol * (trade_price - avg_cost) if curr_pos_vol > 0 else close_vol * (avg_cost - trade_price)
+                
                 total_realized_pnl += realized
                 snap_df.at[i, "realized_pnl"] = realized
 
-                # 调试信息（简化）
+                if abs(pos_change_vol) > abs(curr_pos_vol): # 反向开仓
+                    avg_cost = trade_price 
+                elif abs(pos_change_vol) == abs(curr_pos_vol): # 全平
+                    avg_cost = 0
 
-                # 更新持仓
-                if abs(position_change_volume) > abs(
-                    current_position_volume
-                ):  # 反向开仓
-                    remaining_change = position_change_volume + current_position_volume
-                    avg_cost = trade_price
-                else:  # 部分平仓
-                    avg_cost = avg_cost  # 平均成本不变
+        # 5. 更新状态并计算未实现盈亏
+        current_position = snap_df.at[i, "position"]
+        curr_pos_vol = current_position * base_volume
+        
+        if current_position != 0:
+            unrealized = curr_pos_vol * (price_last - avg_cost) if current_position > 0 else abs(curr_pos_vol) * (avg_cost - price_last)
+            snap_df.at[i, "unrealized_pnl"] = unrealized
+
+        snap_df.at[i, "total_pnl"] = total_realized_pnl + snap_df.at[i, "unrealized_pnl"]
 
         # 更新当前仓位
         current_position = row["position"]
@@ -319,7 +301,7 @@ def backtest_summary_quick(result_df):
 
     # 计算基本统计
     total_trades = df["trade"].sum() if "trade" in df.columns else 0
-    total_profits = df["profits"].sum() if "profits" in df.columns else 0
+    total_profits = df["profits"].iloc[-1]
 
     # 计算交易次数（仓位变化次数）
     if "position" in df.columns:
