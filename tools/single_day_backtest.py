@@ -11,7 +11,8 @@ from backtest_quick import backtest_quick
 def single_day_backtest(
     instrument_id,
     trade_ymd,
-    strategy,
+    StrategyClass,
+    model,
     param_dict=None,
     figsize=(16, 8),
     title_suffix="",
@@ -29,6 +30,7 @@ def single_day_backtest(
         return None
 
     # 2. 运行策略，收集仓位信号
+    strategy = StrategyClass(model, param_dict)
     position_dict = {}
     price_history = []
     time_history = []
@@ -71,7 +73,7 @@ def single_day_backtest(
         # 标注盈亏（如果持仓段足够长）
         if seg["position"] != 0 and seg["end_idx"] - seg["start_idx"] > 10:
             mid_idx = (seg["start_idx"] + seg["end_idx"]) // 2
-            pnl_text = f"{seg['pnl']*100:.3f}"
+            pnl_text = f"{seg['pnl'] * 100:.3f}"
             ax.text(
                 mid_idx,
                 price_history[mid_idx],
@@ -160,7 +162,10 @@ def single_day_backtest(
     if profit_df is not None and "profits" in profit_df.columns:
         total_pnl = profit_df["profits"].iloc[-1]
         # 统计成交次数：仓位变动次数
-        trade_count =  ((profit_df['position'].shift(1).fillna(0) == 0) & (profit_df['position'] != 0)).sum()
+        trade_count = (
+            (profit_df["position"].shift(1).fillna(0) == 0)
+            & (profit_df["position"] != 0)
+        ).sum()
         avg_pnl_per_trade = total_pnl / max(trade_count, 1) if trade_count > 0 else 0
 
         stats_text = (
@@ -215,14 +220,16 @@ def get_change_marker(change_type):
 def plot_enhanced_backtest(
     instrument_id,
     trade_ymd,
-    strategy,
+    StrategyClass,
     param_dict=None,
     figsize=(18, 10),
     title_suffix="",
     save_path=None,
 ):
     # 运行回测获取结果
-    result = single_day_backtest(instrument_id, trade_ymd, strategy, param_dict)
+    result = single_day_backtest(
+        instrument_id, trade_ymd, StrategyClass, None, param_dict
+    )
     if result is None:
         return
 
@@ -377,7 +384,10 @@ def plot_enhanced_backtest(
     if profit_df is not None:
         total_pnl = profit_df["profits"].iloc[-1]
         # 统计成交次数：仓位变动次数
-        trade_count = ((profit_df['position'].shift(1).fillna(0) == 0) & (profit_df['position'] != 0)).sum()
+        trade_count = (
+            (profit_df["position"].shift(1).fillna(0) == 0)
+            & (profit_df["position"] != 0)
+        ).sum()
 
         stats_text = (
             f"Total P&L: {total_pnl:.2f} | "

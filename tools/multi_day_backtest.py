@@ -19,7 +19,9 @@ sys.path.append("/home/jovyan/work/tactics_demo/tools")
 from backtest_quick import backtest_quick
 
 
-def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy,model, param_dict):
+def backtest_multi_days(
+    instrument_id, start_ymd, end_ymd, StrategyClass, model, param_dict
+):
     """
     多天回测函数 - 适配简易向量化版 backtest_quick
     """
@@ -32,7 +34,7 @@ def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy,model, param
 
     while current_date <= end_date:
         trade_ymd = current_date.strftime("%Y%m%d")
-        strategy.__init__(model,param_dict) 
+        strategy = StrategyClass(model, param_dict)
         try:
             # 1. 加载快照
             if not BASE_TOOL_AVAILABLE:
@@ -62,7 +64,10 @@ def backtest_multi_days(instrument_id, start_ymd, end_ymd, strategy,model, param
                 last_row = profit_df.iloc[[-1]].copy()
 
                 # 统计当日交易次数 (仓位变动次数)
-                trade_count = ((profit_df['position'].shift(1).fillna(0) == 0) & (profit_df['position'] != 0)).sum()
+                trade_count = (
+                    (profit_df["position"].shift(1).fillna(0) == 0)
+                    & (profit_df["position"] != 0)
+                ).sum()
 
                 # 构造当日摘要
                 day_data = {

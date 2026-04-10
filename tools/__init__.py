@@ -4,6 +4,8 @@ from .result_saver import (
     load_backtest_results,
     compare_results,
     list_backtest_results,
+    delete_backtest_results_by_date,
+    delete_backtest_results_by_instrument_date,
 )
 
 __all__ = [
@@ -13,4 +15,6 @@ __all__ = [
     "load_backtest_results",
     "compare_results",
     "list_backtest_results",
+    "delete_backtest_results_by_date",
+    "delete_backtest_results_by_instrument_date",
 ]
