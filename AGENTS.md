@@ -91,3 +91,7 @@ result_df = backtest_multi_days(
 summary = backtest_summary(result_df)
 ```
 
+## Python Environment
+
+- **`base`** at `opt/conda/bin/pythono`
+
