@@ -8,7 +8,7 @@ import numpy as np
 import os
 import pickle
 
-def backtest_quick_pro(instrument_id, trade_ymd, strategy_name, position_dict, remake=False):
+def backtest_quick(instrument_id, trade_ymd, strategy_name, position_dict, remake=False):
     """
     严谨对价版回测：买入看卖一，卖出看买一，向量化计算
     """
@@ -68,7 +68,7 @@ def backtest_quick_pro(instrument_id, trade_ymd, strategy_name, position_dict, r
     # 5. 计算盈亏 (现金流法)
     # 交易发生的现金支出/收入 (买入为负，卖出为正)
     # 注意：这里可以轻松加入交易规费和滑点
-    fee_rate = 0.0001 # 假设万一手续费
+    fee_rate = 0.000 # 假设万一手续费
     
     df['trade_cash_flow'] = -df['pos_diff'] * df['exec_price'] * base_volume
     df['transaction_fee'] = df['pos_diff'].abs() * df['exec_price'] * base_volume * fee_rate
