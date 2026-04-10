@@ -4,9 +4,6 @@ import pandas as pd
 import os
 import sys
 
-# 导入你刚才修改过的简易版 backtest_quick
-from backtest_quick import backtest_quick
-
 
 def single_day_backtest(
     instrument_id,
@@ -17,6 +14,7 @@ def single_day_backtest(
     figsize=(16, 8),
     title_suffix="",
     save_path=None,
+    official=False,
 ):
     if param_dict is None:
         param_dict = {}
@@ -24,6 +22,11 @@ def single_day_backtest(
 
     # 1. 加载数据 (保持原样)
     import base_tool
+
+    if official == True:
+        from base_tool import backtest_quick
+    else:
+        from backtest_quick import backtest_quick
 
     snap_list = base_tool.snap_list_load(instrument_id, trade_ymd)
     if not snap_list:
@@ -47,7 +50,7 @@ def single_day_backtest(
     # 3. 运行【新版】回测获取盈亏数据
     # 注意：这里的 profit_df["profits"] 已经是累计盈亏了
     profit_df = backtest_quick(
-        instrument_id, trade_ymd, strategy_name, position_dict, remake=True
+        instrument_id, trade_ymd, strategy_name, position_dict, remake=1
     )
 
     # 4. 准备绘图数据
@@ -162,10 +165,14 @@ def single_day_backtest(
     if profit_df is not None and "profits" in profit_df.columns:
         total_pnl = profit_df["profits"].iloc[-1]
         # 统计成交次数：仓位变动次数
-        trade_count = (
-            (profit_df["position"].shift(1).fillna(0) == 0)
-            & (profit_df["position"] != 0)
-        ).sum()
+        trade_count = 0
+        if "position" in profit_df.columns:
+            trade_count = (
+                (profit_df["position"].shift(1).fillna(0) == 0)
+                & (profit_df["position"] != 0)
+            ).sum()
+        else:
+            trade_count = profit_df['trade'].iloc[-1]
         avg_pnl_per_trade = total_pnl / max(trade_count, 1) if trade_count > 0 else 0
 
         stats_text = (
@@ -193,6 +200,7 @@ def single_day_backtest(
         "change_indices": change_indices,
         "segments": segments,
         "profit_df": profit_df,
+        "strategy_name": strategy_name,
     }
     return result
 
@@ -381,13 +389,15 @@ def plot_enhanced_backtest(
         ax2.text(0.5, 0.5, "No P&L Data Available", ha="center")
 
     # --- 统计汇总文字 ---
-    if profit_df is not None:
+    if profit_df is not None and "profits" in profit_df.columns:
         total_pnl = profit_df["profits"].iloc[-1]
         # 统计成交次数：仓位变动次数
-        trade_count = (
-            (profit_df["position"].shift(1).fillna(0) == 0)
-            & (profit_df["position"] != 0)
-        ).sum()
+        trade_count = 0
+        if "position" in profit_df.columns:
+            trade_count = (
+                (profit_df["position"].shift(1).fillna(0) == 0)
+                & (profit_df["position"] != 0)
+            ).sum()
 
         stats_text = (
             f"Total P&L: {total_pnl:.2f} | "
