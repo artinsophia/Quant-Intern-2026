@@ -36,8 +36,8 @@ class StrategyDemo:
         if not price:
             return
 
-        delta = sum(vol for _, vol in snap["buy_trade"][:self.standard_num]) - sum(
-            vol for _, vol in snap["sell_trade"][:self.standard_num]
+        delta = sum(vol for _, vol in snap["buy_trade"][: self.standard_num]) - sum(
+            vol for _, vol in snap["sell_trade"][: self.standard_num]
         )
         self.delta_buffer.append(delta)
         if len(self.delta_buffer) < self.x_window:
@@ -56,14 +56,19 @@ class StrategyDemo:
         if len(self.feature_buffer) == self.x_window:
             feat_dict = create_feature(self.feature_buffer, self.short_window)
             features_df = pd.DataFrame([feat_dict])
-            prob = self.model.predict_proba(features_df)[:, 1][0]
+            proba = self.model.predict_proba(features_df)
+            # 获取类别1的概率，兼容DataFrame和numpy数组
+            if hasattr(proba, "iloc"):
+                prob = proba.iloc[0, 1]  # DataFrame
+            else:
+                prob = proba[0, 1]  # numpy数组
         else:
             return
 
         base_pct = self.trailing_stop_pct
         dynamic_pct = self.trailing_stop_pct * (1 + abs(std_delta) * self.k_pct)
 
-        dynamic_pct = max(self.min_pct , min(dynamic_pct , self.max_pct))
+        dynamic_pct = max(self.min_pct, min(dynamic_pct, self.max_pct))
 
         current_signal = self.prev_signal
 

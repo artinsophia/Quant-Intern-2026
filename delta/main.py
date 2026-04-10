@@ -15,7 +15,17 @@ from .train import (
 from .strategy import StrategyDemo
 
 
-def main():
+def main(model_type="xgboost", model_params=None):
+    """主函数
+
+    Args:
+        model_type: 模型类型，可选 'xgboost' 或 'linear'
+        model_params: 模型特定参数
+
+    Returns:
+        model: 训练好的模型
+        strategy: 策略实例
+    """
     instrument_id = "518880"
 
     param_dict = {
@@ -32,6 +42,8 @@ def main():
         "stride": 1,
         "k_up": 3,
         "k_down": 3,
+        "model_type": model_type,  # 添加模型类型
+        "model_params": model_params or {},  # 添加模型参数
     }
     param_dict["x_window"] = max(param_dict["short_window"], param_dict["long_window"])
 
@@ -71,15 +83,20 @@ def main():
     print("\n评估模型...")
     accuracy = evaluate_model(model, X_test, y_test)
 
-    model_filename = f"delta_model_{instrument_id}.joblib"
+    model_filename = f"delta_{model_type}_model_{instrument_id}.joblib"
     save_model(model, model_filename)
 
     print("\n创建策略实例...")
     strategy = StrategyDemo(model, param_dict)
-    print(f"策略已创建: {strategy.name}")
+    print(f"策略已创建: {strategy.name} (使用{model_type}模型)")
 
     return model, strategy
 
 
 if __name__ == "__main__":
+    # 默认使用xgboost模型
     model, strategy = main()
+
+    # 如果要使用线性模型，可以这样调用：
+    # linear_model_params = {"C": 0.1, "max_iter": 2000}
+    # model, strategy = main(model_type="linear", model_params=linear_model_params)

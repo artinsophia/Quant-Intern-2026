@@ -10,6 +10,7 @@ from .train import (
     split_dates,
 )
 from .main import main
+from .models import BaseModel, XGBoostModel, LinearModel, ModelFactory
 
 __all__ = [
     "FeatureExtractor",
@@ -26,4 +27,8 @@ __all__ = [
     "get_trade_dates",
     "split_dates",
     "main",
+    "BaseModel",
+    "XGBoostModel",
+    "LinearModel",
+    "ModelFactory",
 ]

@@ -1,38 +1,57 @@
-import xgboost as xgb
-import joblib
 from sklearn.metrics import accuracy_score, classification_report
 import pandas as pd
 
-from .data_processing import samples_from_dates, create_y
-from .features import create_feature
+from .models.factory import ModelFactory
 
 
 def train_model(X_train, y_train, X_valid, y_valid, param_dict):
-    # 计算类别权重以处理不平衡数据
-    scale_pos_weight_value = (
-        (y_train == 0).sum() / (y_train != 0).sum() if (y_train != 0).sum() > 0 else 1.0
-    )
+    """训练模型
 
-    model = xgb.XGBClassifier(
-        n_estimators=2000,
-        max_depth=3,
-        learning_rate=0.01,
-        subsample=0.8,
-        colsample_bytree=0.8,
-        objective="binary:logistic",
-        scale_pos_weight=scale_pos_weight_value,
-        random_state=42,
-        n_jobs=-1,
-        verbosity=1,
-    )
+    Args:
+        X_train: 训练特征
+        y_train: 训练标签
+        X_valid: 验证特征
+        y_valid: 验证标签
+        param_dict: 参数字典，包含model_type等参数
 
-    eval_set = [(X_valid, y_valid)]
-    model.fit(X_train, y_train, eval_set=eval_set, verbose=True)
+    Returns:
+        训练好的模型实例
+    """
+    # 获取模型类型，默认为xgboost以保持向后兼容
+    model_type = param_dict.get("model_type", "xgboost")
+
+    # 获取模型特定参数
+    model_params = param_dict.get("model_params", {})
+
+    print(f"训练 {model_type} 模型...")
+
+    # 使用模型工厂创建模型
+    model = ModelFactory.create_model(model_type, model_params)
+
+    # 训练模型
+    model.fit(X_train, y_train, X_valid, y_valid)
+
+    # 打印特征重要性
+    if hasattr(model, "get_feature_importance"):
+        importance = model.get_feature_importance()
+        if not importance.empty:
+            print("\n特征重要性（前10个）:")
+            print(importance.head(10))
 
     return model
 
 
 def evaluate_model(model, X_test, y_test):
+    """评估模型性能
+
+    Args:
+        model: 模型实例
+        X_test: 测试特征
+        y_test: 测试标签
+
+    Returns:
+        准确率
+    """
     y_pred = model.predict(X_test)
     accuracy = accuracy_score(y_test, y_pred)
     print(f"测试集准确率: {accuracy:.4f}")
@@ -42,13 +61,34 @@ def evaluate_model(model, X_test, y_test):
 
 
 def save_model(model, filename):
-    joblib.dump(model, filename)
+    """保存模型
+
+    Args:
+        model: 模型实例
+        filename: 保存文件名
+    """
+    model.save(filename)
     print(f"模型已保存到: {filename}")
 
 
-def load_model(filename):
-    model = joblib.load(filename)
+def load_model(filename, model_type="xgboost", model_params=None):
+    """加载模型
+
+    Args:
+        filename: 模型文件名
+        model_type: 模型类型（用于创建模型实例）
+        model_params: 模型参数
+
+    Returns:
+        加载的模型实例
+    """
+    # 创建模型实例
+    model = ModelFactory.create_model(model_type, model_params)
+
+    # 加载模型权重
+    model.load(filename)
     print(f"模型已从 {filename} 加载")
+
     return model
 
 
