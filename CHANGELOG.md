@@ -1,6 +1,10 @@
+## [2026-4-10]
+### 1. Model standardlization
+### 2. Focos on model fitting 
+
 ## [2026-4-8]
 ### 1. Finish my backtest
-### 1. Finish my two-model models 
+### 2. Finish my two-model models 
 
 ## [2026-4-7]
 ### 1. Build my backtest
@@ -12,7 +16,7 @@
 
 ## [2026-3-31]
 ### 1. Build machine learning structure.
-### 1. Use XGBoost to predict confidence of tactics , but it shows no good alpha no profits
+### 2. Use XGBoost to predict confidence of tactics , but it shows no good alpha no profits
 
 ## [2026-3-30]
 ### 1. Build backtesting function and calculate profits in two months

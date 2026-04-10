@@ -2,6 +2,7 @@ from typing import Dict, Any, Type
 from .base import BaseModel
 from .xgboost_model import XGBoostModel
 from .linear_model import LinearModel
+from .ensemble_model import EnsembleModel
 
 
 class ModelFactory:
@@ -11,6 +12,7 @@ class ModelFactory:
     _model_registry = {
         "xgboost": XGBoostModel,
         "linear": LinearModel,
+        "ensemble": EnsembleModel,
     }
 
     @classmethod
@@ -33,6 +35,14 @@ class ModelFactory:
             raise ValueError(
                 f"不支持的模型类型: {model_type}. 可用类型: {available_models}"
             )
+
+        # 处理可能的元组情况（Jupyter notebook中字典末尾的逗号会创建元组）
+        if (
+            isinstance(params, tuple)
+            and len(params) == 1
+            and isinstance(params[0], dict)
+        ):
+            params = params[0]
 
         return model_class(params)
 
@@ -84,6 +94,14 @@ class ModelFactory:
                 "max_iter": 1000,
                 "random_state": 42,
                 "class_weight": "balanced",
+            },
+            "ensemble": {
+                "voting": "soft",
+                "weights": None,
+                "models": [
+                    ("xgboost", {"n_estimators": 1000, "max_depth": 3}),
+                    ("linear", {"C": 1.0}),
+                ],
             },
         }
 

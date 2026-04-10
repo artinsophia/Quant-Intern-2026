@@ -6,11 +6,20 @@ from typing import Dict, Any
 from .base import BaseModel
 import math
 
+
 class XGBoostModel(BaseModel):
     """XGBoost模型实现"""
 
     def __init__(self, params: Dict[str, Any] = None):
         super().__init__(params)
+
+        # 处理可能的元组情况（Jupyter notebook中字典末尾的逗号会创建元组）
+        if (
+            isinstance(params, tuple)
+            and len(params) == 1
+            and isinstance(params[0], dict)
+        ):
+            params = params[0]
 
         # 默认参数
         default_params = {
@@ -95,5 +104,5 @@ class XGBoostModel(BaseModel):
         neg_count = (y_train == 0).sum()
 
         if pos_count > 0:
-            return math.sqrt(neg_count / pos_count)
+            return neg_count / pos_count / 2 # math.sqrt(neg_count / pos_count)
         return 1.0

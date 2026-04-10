@@ -28,6 +28,7 @@ class FeatureExtractor:
             for row in self.snap_slice[-self.short_window :]
             for _, vol in row["sell_trade"]
         )
+        
 
     @staticmethod
     def _safe_get_level(book: List[tuple], idx: int = 0) -> tuple:
@@ -121,7 +122,7 @@ class FeatureExtractor:
         price_diff = abs(end_price - start_price) / start_price 
         total_vol = self.bid_volume_short + self.ask_volume_short
         
-        return price_diff / total_vol if total_vol > 0 else 0.0
+        return price_diff  / total_vol if total_vol > 0 else 0.0
     
     @property
     def alpha_07(self) -> float:
@@ -134,7 +135,7 @@ class FeatureExtractor:
 
     def extract_all(self) -> Dict[str, Any]:
         return {
-            "num_trades": self.last.get("num_trades", 0),
+            "num_trades": self.last.get("num_trades", 0) - self.snap_slice[-2].get("num_trades", 0),
             "best_bid": self.best_bid,
             "best_ask": self.best_ask,
             "volatility": self.volatility,

@@ -15,6 +15,14 @@ class LinearModel(BaseModel):
     def __init__(self, params: Dict[str, Any] = None):
         super().__init__(params)
 
+        # 处理可能的元组情况（Jupyter notebook中字典末尾的逗号会创建元组）
+        if (
+            isinstance(params, tuple)
+            and len(params) == 1
+            and isinstance(params[0], dict)
+        ):
+            params = params[0]
+
         # 默认参数 - 更新以兼容sklearn 1.8+
         default_params = {
             "C": 1.0,

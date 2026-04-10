@@ -7,6 +7,14 @@ class BaseModel(ABC):
     """基础模型接口"""
 
     def __init__(self, params: Dict[str, Any] = None):
+        # 处理可能的元组情况（Jupyter notebook中字典末尾的逗号会创建元组）
+        if (
+            isinstance(params, tuple)
+            and len(params) == 1
+            and isinstance(params[0], dict)
+        ):
+            params = params[0]
+
         self.params = params or {}
         self.model = None
 
