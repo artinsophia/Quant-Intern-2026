@@ -131,7 +131,7 @@ class XGBoostModel(BaseModel):
         neg_count = (y_train == 0).sum()
 
         if pos_count > 0:
-            return neg_count / pos_count / 2  # math.sqrt(neg_count / pos_count)
+            return neg_count / pos_count   # math.sqrt(neg_count / pos_count)
         return 1.0
 
     def _calculate_adaptive_scale_pos_weight(self, X_train, y_train, X_valid, y_valid):
@@ -148,7 +148,7 @@ class XGBoostModel(BaseModel):
             return base_weight
 
         # 尝试不同的权重因子
-        weight_factors = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 3.0, 5.0]
+        weight_factors = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0, 2.25, 2.5, 2.75, 3.0, 5.0]
         best_weight = base_weight
         best_score = -1
         best_recall = 0
@@ -161,7 +161,7 @@ class XGBoostModel(BaseModel):
             # 创建临时模型测试权重
             temp_params = self.model_params.copy()
             temp_params["scale_pos_weight"] = current_weight
-            temp_params["n_estimators"] = 1000  # 使用较少的树进行快速测试
+            temp_params["n_estimators"] = 2000  # 使用较少的树进行快速测试
 
             temp_model = xgb.XGBClassifier(**temp_params)
             temp_model.fit(X_train, y_train)
@@ -177,8 +177,8 @@ class XGBoostModel(BaseModel):
             precision = precision_score(y_valid, y_pred, zero_division=0)
 
             # 计算综合得分：在保证一定召回率的前提下最大化精确率
-            # 目标召回率设为0.3
-            target_recall = 0.3
+            # 目标召回率设为0.4
+            target_recall = 0.4
             if recall >= target_recall:
                 # 召回率达标，使用精确率作为主要指标
                 score = precision
