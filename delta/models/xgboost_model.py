@@ -40,17 +40,22 @@ class XGBoostModel(BaseModel):
         self.model_params = {**default_params, **(params or {})}
 
     def fit(self, X_train, y_train, X_valid=None, y_valid=None):
-        """训练模型"""
-        # 1. 直接计算稳健权重
-        self.model_params["scale_pos_weight"] = self._calculate_scale_pos_weight(y_train)
+        """训练模型 - 兼容性增强版"""
+        # 1. 计算权重
+        self.model_params["scale_pos_weight"] = self._calculate_adaptive_scale_pos_weight(y_train)
 
-        # 2. 早停设置 (保留你原来的逻辑)
+        # 2. 准备早停参数
+        # 注意：在新版 XGBoost 中，早停可以直接在初始化或 fit 中定义
+        early_stop_params = {}
         if self.early_stopping and X_valid is not None and y_valid is not None:
-            self.model_params["early_stopping_rounds"] = self.early_stopping.patience
-            self.model_params["eval_metric"] = self._get_xgboost_eval_metric()
+            early_stop_params = {
+                "early_stopping_rounds": self.early_stopping.patience,
+                "eval_metric": self._get_xgboost_eval_metric()
+            }
             self.early_stopping.reset()
 
-        # 3. 训练模型 (仅训练一次！)
+        # 3. 创建并训练模型
+        # 我们把参数拆分开传给 fit，这样即使 callbacks 不好使，这里也能跑通
         self.model = xgb.XGBClassifier(**self.model_params)
         
         if X_valid is not None and y_valid is not None:
@@ -59,10 +64,10 @@ class XGBoostModel(BaseModel):
                 X_train, y_train,
                 eval_set=eval_set,
                 verbose=False,
-                callbacks=[self._xgboost_early_stopping_callback()] if self.early_stopping else None
+                **early_stop_params  # 使用字典解包传递早停参数
             )
-            # 4. 训练完成后，自动寻找最优阈值
-            self._optimize_threshold(X_valid, y_valid, beta=1.2) # beta=1.2 稍微偏向召回率
+            # 4. 优化阈值
+            self._optimize_threshold(X_valid, y_valid, beta=1.2)
         else:
             self.model.fit(X_train, y_train, verbose=True)
 
