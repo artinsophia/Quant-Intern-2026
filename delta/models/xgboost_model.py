@@ -33,13 +33,14 @@ class XGBoostModel(BaseModel):
             "random_state": 42,
             "n_jobs": -1,
             "verbosity": 1,
+
         }
 
         # 合并参数
         self.model_params = {**default_params, **(params or {})}
 
         # 提取 beta 参数作为实例属性
-        self.beta = self.model_params.pop("beta", 0.5)
+        self.beta = self.model_params.pop("beta", 1)
 
         self.best_threshold = 0.5
 
@@ -185,62 +186,4 @@ class XGBoostModel(BaseModel):
 
         return metric_map.get(metric, "error")
 
-    def _xgboost_early_stopping_callback(self):
-        """创建XGBoost早停回调函数"""
-        from xgboost.callback import EarlyStopping as XGBEarlyStopping
 
-        # 获取早停参数
-        patience = self.early_stopping.patience
-        metric_name = self._get_xgboost_eval_metric()
-
-        # 确定最大化还是最小化
-        maximize = self.early_stopping.mode == "max"
-
-        return XGBEarlyStopping(
-            rounds=patience,
-            metric_name=metric_name,
-            maximize=maximize,
-            min_delta=self.early_stopping.min_delta,
-            save_best=self.early_stopping.restore_best_weights,
-        )
-
-    def get_training_history(self) -> Optional[pd.DataFrame]:
-        """获取训练历史（包括早停信息）"""
-        if self.model is None:
-            return None
-
-        # 获取XGBoost的训练历史
-        evals_result = self.model.evals_result()
-        if not evals_result:
-            return None
-
-        history_data = []
-        for eval_name, metrics in evals_result.items():
-            for metric_name, values in metrics.items():
-                for epoch, value in enumerate(values):
-                    history_data.append(
-                        {
-                            "epoch": epoch,
-                            "eval_set": eval_name,
-                            "metric": metric_name,
-                            "value": value,
-                        }
-                    )
-
-        history_df = pd.DataFrame(history_data)
-
-        # 添加早停信息
-        if self.early_stopping and self.early_stopping.history:
-            early_stop_history = self.early_stopping.get_history()
-            if early_stop_history:
-                # 将早停历史转换为DataFrame
-                early_stop_df = pd.DataFrame(early_stop_history)
-                history_df = pd.merge(
-                    history_df,
-                    early_stop_df,
-                    left_on="epoch",
-                    right_on="epoch",
-                    how="left",
-                )
-
-        return history_df

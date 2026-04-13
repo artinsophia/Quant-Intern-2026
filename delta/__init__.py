@@ -8,6 +8,7 @@ from .train import (
     load_model,
     get_trade_dates,
     split_dates,
+    split_dates_by_range,
 )
 from .main import main
 from .models import BaseModel, XGBoostModel, LinearModel, ModelFactory
@@ -26,6 +27,7 @@ __all__ = [
     "load_model",
     "get_trade_dates",
     "split_dates",
+    "split_dates_by_range",
     "main",
     "BaseModel",
     "XGBoostModel",

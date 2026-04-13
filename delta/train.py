@@ -56,6 +56,7 @@ def train_model(X_train, y_train, X_valid, y_valid, param_dict):
 
     return model
 
+
 def evaluate_model(model, X_test, y_test, show_plots=False):
     """评估模型性能
 
@@ -209,6 +210,29 @@ def load_model(filename, model_type="xgboost", model_params=None):
 
 def get_trade_dates():
     trade_dates = [
+        "20251201",
+        "20251202",
+        "20251203",
+        "20251204",
+        "20251205",
+        "20251208",
+        "20251209",
+        "20251210",
+        "20251211",
+        "20251212",
+        "20251215",
+        "20251216",
+        "20251217",
+        "20251218",
+        "20251219",
+        "20251222",
+        "20251223",
+        "20251224",
+        "20251225",
+        "20251226",
+        "20251229",
+        "20251230",
+        "20251231",
         "20260105",
         "20260106",
         "20260107",
@@ -277,5 +301,67 @@ def split_dates(trade_dates, train_days=35, valid_days=9, test_days=10):
     print(f"训练集: {train_dates[0]} ~ {train_dates[-1]} ({len(train_dates)}天)")
     print(f"验证集: {valid_dates[0]} ~ {valid_dates[-1]} ({len(valid_dates)}天)")
     print(f"测试集: {test_dates[0]} ~ {test_dates[-1]} ({len(test_dates)}天)")
+
+    return train_dates, valid_dates, test_dates
+
+
+def split_dates_by_range(
+    trade_dates,
+    train_start=None,
+    train_end=None,
+    valid_start=None,
+    valid_end=None,
+    test_start=None,
+    test_end=None,
+):
+    """按日期范围分割交易日
+
+    Args:
+        trade_dates: 完整的交易日列表
+        train_start: 训练集开始日期 (包含)
+        train_end: 训练集结束日期 (包含)
+        valid_start: 验证集开始日期 (包含)
+        valid_end: 验证集结束日期 (包含)
+        test_start: 测试集开始日期 (包含)
+        test_end: 测试集结束日期 (包含)
+
+    Returns:
+        train_dates, valid_dates, test_dates
+    """
+
+    def filter_dates_by_range(date_list, start_date, end_date):
+        """根据开始和结束日期过滤日期列表"""
+        if start_date is None and end_date is None:
+            return []
+
+        filtered = []
+        for date in date_list:
+            if start_date and date < start_date:
+                continue
+            if end_date and date > end_date:
+                continue
+            filtered.append(date)
+        return filtered
+
+    # 过滤出各个集合的日期
+    train_dates = filter_dates_by_range(trade_dates, train_start, train_end)
+    valid_dates = filter_dates_by_range(trade_dates, valid_start, valid_end)
+    test_dates = filter_dates_by_range(trade_dates, test_start, test_end)
+
+    # 打印结果
+    if train_dates:
+        print(f"训练集: {train_dates[0]} ~ {train_dates[-1]} ({len(train_dates)}天)")
+    else:
+        print("训练集: 无")
+
+    if valid_dates:
+        print(f"验证集: {valid_dates[0]} ~ {valid_dates[-1]} ({len(valid_dates)}天)")
+    else:
+        print("验证集: 无")
+
+    if test_dates:
+        print(f"测试集: {test_dates[0]} ~ {test_dates[-1]} ({len(test_dates)}天)")
+    else:
+        print("测试集: 无")
 
     return train_dates, valid_dates, test_dates
