@@ -4,7 +4,6 @@ from .strategy import StrategyDemo
 from .train import (
     train_model,
     evaluate_model,
-    calculate_adaptive_thresholds,
     save_model,
     load_model,
     get_trade_dates,
@@ -23,7 +22,6 @@ __all__ = [
     "StrategyDemo",
     "train_model",
     "evaluate_model",
-    "calculate_adaptive_thresholds",
     "save_model",
     "load_model",
     "get_trade_dates",

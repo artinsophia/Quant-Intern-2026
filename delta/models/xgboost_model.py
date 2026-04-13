@@ -5,6 +5,7 @@ import numpy as np
 from typing import Dict, Any, Optional
 from .base import BaseModel
 import math
+from sklearn.metrics import precision_recall_curve, fbeta_score
 
 
 class XGBoostModel(BaseModel):
@@ -35,14 +36,19 @@ class XGBoostModel(BaseModel):
         }
 
         # 合并参数
+        self.model_params = {**default_params, **(params or {})}
+
+        # 提取 beta 参数作为实例属性
+        self.beta = self.model_params.pop("beta", 0.5)
 
         self.best_threshold = 0.5
-        self.model_params = {**default_params, **(params or {})}
 
     def fit(self, X_train, y_train, X_valid=None, y_valid=None):
         """训练模型 - 兼容性增强版"""
         # 1. 计算权重
-        self.model_params["scale_pos_weight"] = self._calculate_adaptive_scale_pos_weight(y_train)
+        self.model_params["scale_pos_weight"] = self._calculate_scale_pos_weight(
+            y_train
+        )
 
         # 2. 准备早停参数
         # 注意：在新版 XGBoost 中，早停可以直接在初始化或 fit 中定义
@@ -50,24 +56,25 @@ class XGBoostModel(BaseModel):
         if self.early_stopping and X_valid is not None and y_valid is not None:
             early_stop_params = {
                 "early_stopping_rounds": self.early_stopping.patience,
-                "eval_metric": self._get_xgboost_eval_metric()
+                "eval_metric": self._get_xgboost_eval_metric(),
             }
             self.early_stopping.reset()
 
         # 3. 创建并训练模型
         # 我们把参数拆分开传给 fit，这样即使 callbacks 不好使，这里也能跑通
         self.model = xgb.XGBClassifier(**self.model_params)
-        
+
         if X_valid is not None and y_valid is not None:
             eval_set = [(X_valid, y_valid)]
             self.model.fit(
-                X_train, y_train,
+                X_train,
+                y_train,
                 eval_set=eval_set,
                 verbose=False,
-                **early_stop_params  # 使用字典解包传递早停参数
+                **early_stop_params,  # 使用字典解包传递早停参数
             )
             # 4. 优化阈值
-            self._optimize_threshold(X_valid, y_valid, beta=1.2)
+            self._optimize_threshold(X_valid, y_valid)
         else:
             self.model.fit(X_train, y_train, verbose=True)
 
@@ -77,12 +84,12 @@ class XGBoostModel(BaseModel):
         """使用优化后的阈值进行预测"""
         if self.model is None:
             raise ValueError("模型未训练")
-        
+
         # 获取概率
         y_proba = self.model.predict_proba(X)[:, 1]
         # 根据最优阈值进行二分类
         y_pred = (y_proba >= self.best_threshold).astype(int)
-        
+
         return pd.Series(y_pred, index=X.index)
 
     def predict_proba(self, X: pd.DataFrame) -> pd.DataFrame:
@@ -126,23 +133,27 @@ class XGBoostModel(BaseModel):
             return math.sqrt(neg_count / pos_count)
         return 1.0
 
-    def _optimize_threshold(self, X_valid, y_valid, beta=1.0):
+    def _optimize_threshold(self, X_valid, y_valid):
         """
         在验证集上寻找最优阈值，极大化 F-beta score
         """
         y_proba = self.model.predict_proba(X_valid)[:, 1]
         precisions, recalls, thresholds = precision_recall_curve(y_valid, y_proba)
-        
+
         # 计算 F-beta Score (beta=1 是 F1, beta>1 偏向召回率)
-        f_scores = (1 + beta**2) * (precisions * recalls) / ((beta**2 * precisions) + recalls + 1e-8)
-        
+        f_scores = (
+            (1 + self.beta**2)
+            * (precisions * recalls)
+            / ((self.beta**2 * precisions) + recalls + 1e-8)
+        )
+
         best_idx = np.argmax(f_scores)
         # 最后一个 threshold 之后没有对应的 precision/recall，需要处理 index
-        self.best_threshold = thresholds[min(best_idx, len(thresholds)-1)]
-        
-        print(f"阈值优化完成: Best Threshold={self.best_threshold:.4f}, F{beta}={f_scores[best_idx]:.4f}")
+        self.best_threshold = thresholds[min(best_idx, len(thresholds) - 1)]
 
-    
+        print(
+            f"阈值优化完成: Best Threshold={self.best_threshold:.4f}, F{self.beta}={f_scores[best_idx]:.4f}"
+        )
 
     def _get_xgboost_eval_metric(self) -> str:
         """将早停监控指标转换为XGBoost评估指标"""

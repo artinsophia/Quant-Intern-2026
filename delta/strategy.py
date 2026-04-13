@@ -65,7 +65,6 @@ class StrategyDemo:
         else:
             return
 
-        base_pct = self.trailing_stop_pct
         dynamic_pct = self.trailing_stop_pct * (1 + abs(std_delta) * self.k_pct)
 
         dynamic_pct = max(self.min_pct, min(dynamic_pct, self.max_pct))
@@ -76,7 +75,7 @@ class StrategyDemo:
             self.max_favorable_price = max(self.max_favorable_price, price)
             pullback = (self.max_favorable_price - price) / self.max_favorable_price
             if pullback >= dynamic_pct:
-                if prob is not None and prob > self.close_confidence:
+                if prob is not None and prob > self.model.best_threshold + self.close_confidence:
                     current_signal = 1
                 else:
                     current_signal = 0
@@ -85,7 +84,7 @@ class StrategyDemo:
             self.max_favorable_price = min(self.max_favorable_price, price)
             pullback = (price - self.max_favorable_price) / self.max_favorable_price
             if pullback >= dynamic_pct:
-                if prob is not None and prob > self.close_confidence:
+                if prob is not None and prob > self.model.best_threshold + self.close_confidence:
                     current_signal = -1
                 else:
                     current_signal = 0
@@ -102,7 +101,7 @@ class StrategyDemo:
                 self.prev_signal = 0
                 self.max_favorable_price = 0
             else:
-                if prob is not None and prob > self.open_confidence:
+                if prob is not None and prob > self.model.best_threshold + self.open_confidence:
                     self.position_last = current_signal
                     self.prev_signal = current_signal
                     self.max_favorable_price = price

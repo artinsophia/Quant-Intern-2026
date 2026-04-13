@@ -47,22 +47,6 @@ def train_model(X_train, y_train, X_valid, y_valid, param_dict):
     # 训练模型
     model.fit(X_train, y_train, X_valid, y_valid)
 
-    # 计算自适应阈值（如果提供了验证集）
-    if X_valid is not None and y_valid is not None:
-        open_confidence, close_confidence = calculate_adaptive_thresholds(
-            model, X_valid, y_valid
-        )
-
-        # 更新param_dict中的阈值
-        param_dict["open_confidence"] = open_confidence
-        param_dict["close_confidence"] = close_confidence
-
-        print(f"\n自适应阈值计算完成:")
-        print(f"  open_confidence (中位数): {open_confidence:.4f}")
-        print(f"  close_confidence (75分位数): {close_confidence:.4f}")
-    else:
-        print("警告：未提供验证集，使用默认阈值")
-
     # 打印特征重要性
     if hasattr(model, "get_feature_importance"):
         importance = model.get_feature_importance()
@@ -71,43 +55,6 @@ def train_model(X_train, y_train, X_valid, y_valid, param_dict):
             print(importance.head(10))
 
     return model
-
-
-def calculate_adaptive_thresholds(model, X_valid, y_valid):
-    """计算自适应阈值（中位数和75分位数）
-
-    Args:
-        model: 训练好的模型
-        X_valid: 验证集特征
-        y_valid: 验证集标签
-
-    Returns:
-        tuple: (open_confidence, close_confidence) 自适应阈值
-    """
-    if not hasattr(model, "predict_proba"):
-        print("警告：模型不支持概率预测，使用默认阈值")
-        return 0.4, 0.6
-
-    # 获取验证集预测概率
-    y_pred_proba_df = model.predict_proba(X_valid)
-    # 获取正类的概率（第二列）
-    y_pred_proba = (
-        y_pred_proba_df.iloc[:, 1].values
-        if hasattr(y_pred_proba_df, "iloc")
-        else y_pred_proba_df[:, 1]
-    )
-
-    # 计算中位数和80分位数
-    median_prob = np.median(y_pred_proba)
-    percentile_80 = np.percentile(y_pred_proba, 80)
-
-    print(f"验证集概率统计:")
-    print(f"  中位数: {median_prob:.4f}")
-    print(f"  80分位数: {percentile_80:.4f}")
-
-    # 返回自适应阈值
-    return float(median_prob), float(percentile_80)
-
 
 def evaluate_model(model, X_test, y_test, show_plots=False):
     """评估模型性能
