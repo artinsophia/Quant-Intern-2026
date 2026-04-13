@@ -40,7 +40,7 @@ class XGBoostModel(BaseModel):
         self.model_params = {**default_params, **(params or {})}
 
         # 提取 beta 参数作为实例属性
-        self.beta = self.model_params.pop("beta", 1)
+        self.beta = self.model_params.pop("beta", 0.8)
 
         self.best_threshold = 0.5
 

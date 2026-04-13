@@ -1,3 +1,7 @@
+## [2026-4-13]
+### 1. Solve overfitting
+### 2. Use prob threshold to improve precision
+
 ## [2026-4-10]
 ### 1. Model standardlization
 ### 2. Focos on model fitting 

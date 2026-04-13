@@ -67,7 +67,7 @@ class StrategyDemo:
 
         dynamic_pct = self.trailing_stop_pct * (1 + abs(std_delta) * self.k_pct)
 
-        dynamic_pct = max(self.min_pct, min(dynamic_pct, self.max_pct))
+        dynamic_pct = max(self.trailing_stop_pct, min(dynamic_pct, 4*self.trailing_stop_pct))
 
         current_signal = self.prev_signal
 
@@ -105,5 +105,3 @@ class StrategyDemo:
                     self.position_last = current_signal
                     self.prev_signal = current_signal
                     self.max_favorable_price = price
-                else:
-                    current_signal = self.prev_signal
