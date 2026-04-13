@@ -97,16 +97,16 @@ def calculate_adaptive_thresholds(model, X_valid, y_valid):
         else y_pred_proba_df[:, 1]
     )
 
-    # 计算中位数和75分位数
+    # 计算中位数和80分位数
     median_prob = np.median(y_pred_proba)
-    percentile_75 = np.percentile(y_pred_proba, 80)
+    percentile_80 = np.percentile(y_pred_proba, 80)
 
     print(f"验证集概率统计:")
     print(f"  中位数: {median_prob:.4f}")
-    print(f"  75分位数: {percentile_75:.4f}")
+    print(f"  80分位数: {percentile_80:.4f}")
 
     # 返回自适应阈值
-    return float(median_prob), float(percentile_75)
+    return float(median_prob), float(percentile_80)
 
 
 def evaluate_model(model, X_test, y_test, show_plots=False):
