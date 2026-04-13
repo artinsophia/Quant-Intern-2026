@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, List, Union
+from typing import Dict, Any, List, Union, Optional
 from .base import BaseModel
 import joblib
 
@@ -63,6 +63,22 @@ class EnsembleModel(BaseModel):
                 model_params = model_config.get("params", {})
             else:
                 raise ValueError(f"模型配置格式错误: {model_config}")
+
+            # 如果有集成模型的早停参数，将其传递给子模型
+            if self.early_stopping:
+                # 将集成模型的早停参数添加到子模型参数中
+                if "early_stopping" not in model_params:
+                    # 创建早停参数副本，避免影响其他子模型
+                    early_stopping_params = {
+                        "patience": self.early_stopping.patience,
+                        "min_delta": self.early_stopping.min_delta,
+                        "mode": self.early_stopping.mode,
+                        "monitor": self.early_stopping.monitor,
+                        "baseline": self.early_stopping.baseline,
+                        "restore_best_weights": self.early_stopping.restore_best_weights,
+                        "verbose": self.early_stopping.verbose,
+                    }
+                    model_params["early_stopping"] = early_stopping_params
 
             # 创建模型
             model = ModelFactory.create_model(model_type, model_params)
@@ -266,3 +282,18 @@ class EnsembleModel(BaseModel):
             )
 
         return pd.DataFrame(info)
+
+    def get_early_stopping_info_all(self) -> pd.DataFrame:
+        """获取所有子模型的早停信息"""
+        if not self.models:
+            return pd.DataFrame()
+
+        early_stop_info = []
+        for i, model in enumerate(self.models):
+            info = model.get_early_stopping_info()
+            if info:
+                info["model_index"] = i
+                info["model_type"] = self.model_types[i]
+                early_stop_info.append(info)
+
+        return pd.DataFrame(early_stop_info)

@@ -5,7 +5,7 @@ from sklearn.pipeline import Pipeline
 import joblib
 import pandas as pd
 import numpy as np
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from .base import BaseModel
 
 
@@ -53,6 +53,11 @@ class LinearModel(BaseModel):
         y_valid: pd.Series = None,
     ):
         """训练线性模型"""
+        # 如果有早停机制，打印警告信息（线性模型通常不支持增量训练）
+        if self.early_stopping:
+            print("警告: 线性模型通常不支持增量训练和早停机制。")
+            print("早停参数将被忽略，使用标准训练方式。")
+
         # 线性模型通常不使用验证集进行early stopping
         self.pipeline.fit(X_train, y_train)
         return self
