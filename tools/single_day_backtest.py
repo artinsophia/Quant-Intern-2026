@@ -172,7 +172,7 @@ def single_day_backtest(
                 & (profit_df["position"] != 0)
             ).sum()
         else:
-            trade_count = profit_df['trade'].iloc[-1]
+            trade_count = profit_df["trade"].iloc[-1]
         avg_pnl_per_trade = total_pnl / max(trade_count, 1) if trade_count > 0 else 0
 
         stats_text = (
@@ -223,7 +223,6 @@ def get_change_marker(change_type):
         return "v"
     else:  # 平仓
         return "o"
-
 
 
 def analyze_position_segments(position_history, price_history):
@@ -297,3 +296,222 @@ def analyze_position_segments(position_history, price_history):
         )
 
     return segments
+
+
+def plot_delta_history(
+    instrument_id,
+    trade_ymd,
+    StrategyClass,
+    model,
+    param_dict=None,
+    figsize=(16, 8),
+    title_suffix="",
+    save_path=None,
+    official=False,
+):
+    """绘制delta随时间变化的图，并标出变仓点"""
+    if param_dict is None:
+        param_dict = {}
+    strategy_name = param_dict.get("name", "strategy")
+
+    import base_tool
+
+    if official == True:
+        from base_tool import backtest_quick
+    else:
+        from backtest_quick import backtest_quick
+
+    snap_list = base_tool.snap_list_load(instrument_id, trade_ymd)
+    if not snap_list:
+        return None
+
+    from collections import deque
+    import itertools
+
+    strategy = StrategyClass(model, param_dict)
+    position_dict = {}
+    delta_history = []
+    zscore_history = []
+    price_history = []
+    time_history = []
+    position_history = []
+
+    standard_num = param_dict.get("standard_num", 10)
+    x_window = param_dict.get("x_window", 300)
+    short_window = param_dict.get("short_window", 60)
+
+    delta_buffer = deque(maxlen=x_window)
+
+    for snap in snap_list:
+        strategy.on_snap(snap)
+
+        delta = sum(vol for _, vol in snap["buy_trade"][:standard_num]) - sum(
+            vol for _, vol in snap["sell_trade"][:standard_num]
+        )
+        delta_buffer.append(delta)
+
+        if len(delta_buffer) < x_window:
+            zscore_val = 0.0
+        else:
+            recent_delta = list(
+                itertools.islice(
+                    delta_buffer,
+                    max(0, len(delta_buffer) - short_window),
+                    None,
+                )
+            )
+            mean = np.mean(recent_delta)
+            std = np.std(recent_delta)
+            if std == 0:
+                zscore_val = 0.0
+            else:
+                zscore_val = (recent_delta[-1] - mean) / std
+
+        t, p, pos = snap["time_mark"], snap["price_last"], strategy.position_last
+        position_dict[t] = pos
+        delta_history.append(delta)
+        zscore_history.append(zscore_val)
+        price_history.append(p)
+        time_history.append(t)
+        position_history.append(pos)
+
+    profit_df = backtest_quick(
+        instrument_id, trade_ymd, strategy_name, position_dict, remake=1
+    )
+
+    delta_history = np.array(delta_history)
+    zscore_history = np.array(zscore_history)
+    price_history = np.array(price_history)
+    position_history = np.array(position_history)
+    change_indices = np.where(np.diff(position_history, prepend=0) != 0)[0]
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    x = range(len(zscore_history))
+    ax.plot(x, zscore_history, "b-", linewidth=1.5, alpha=0.7, label="Delta Z-Score")
+
+    ax.axhline(y=0, color="gray", linestyle="--", linewidth=1, alpha=0.5)
+    ax.axhline(y=2, color="red", linestyle="--", linewidth=1, alpha=0.5)
+    ax.axhline(y=-2, color="green", linestyle="--", linewidth=1, alpha=0.5)
+
+    for idx in change_indices:
+        if idx < len(zscore_history):
+            change_type = position_history[idx] - (
+                position_history[idx - 1] if idx > 0 else 0
+            )
+            marker = get_change_marker(change_type)
+            color = get_position_color(position_history[idx])
+
+            label = None
+            if change_type > 0:
+                label = "Open Long" if idx == change_indices[0] else ""
+            elif change_type < 0:
+                label = "Open Short" if idx == change_indices[0] else ""
+            else:
+                label = "Close" if idx == change_indices[0] else ""
+
+            ax.plot(
+                idx,
+                zscore_history[idx],
+                marker=marker,
+                markersize=10,
+                color=color,
+                markeredgecolor="black",
+                markeredgewidth=1,
+                label=label,
+            )
+
+    ax.set_xlabel("Time Index")
+    ax.set_ylabel("Delta Z-Score")
+    ax.set_title(f"{instrument_id} - {trade_ymd} {strategy_name} Delta {title_suffix}")
+    ax.grid(True, alpha=0.3)
+
+    from matplotlib.patches import Patch
+
+    legend_elements = [
+        plt.Line2D(
+            [0],
+            [0],
+            color="blue",
+            linewidth=1.5,
+            label="Delta",
+        ),
+        Patch(facecolor="red", alpha=0.3, label="Long Position"),
+        Patch(facecolor="green", alpha=0.3, label="Short Position"),
+        Patch(facecolor="gray", alpha=0.3, label="No Position"),
+        plt.Line2D(
+            [0],
+            [0],
+            marker="^",
+            color="w",
+            markerfacecolor="red",
+            markeredgecolor="black",
+            markersize=10,
+            label="Open Long",
+        ),
+        plt.Line2D(
+            [0],
+            [0],
+            marker="v",
+            color="w",
+            markerfacecolor="green",
+            markeredgecolor="black",
+            markersize=10,
+            label="Open Short",
+        ),
+        plt.Line2D(
+            [0],
+            [0],
+            marker="o",
+            color="w",
+            markerfacecolor="gray",
+            markeredgecolor="black",
+            markersize=10,
+            label="Close Position",
+        ),
+    ]
+    ax.legend(handles=legend_elements, loc="upper left")
+
+    if profit_df is not None and "profits" in profit_df.columns:
+        total_pnl = profit_df["profits"].iloc[-1]
+        trade_count = 0
+        if "position" in profit_df.columns:
+            trade_count = (
+                (profit_df["position"].shift(1).fillna(0) == 0)
+                & (profit_df["position"] != 0)
+            ).sum()
+        else:
+            trade_count = profit_df["trade"].iloc[-1]
+        avg_pnl_per_trade = total_pnl / max(trade_count, 1) if trade_count > 0 else 0
+
+        stats_text = (
+            f"Total P&L: {total_pnl:.2f} | "
+            f"Avg P&L/Trade: {avg_pnl_per_trade:.2f} | "
+            f"Trade Count: {trade_count}"
+        )
+        fig.text(
+            0.02,
+            0.02,
+            stats_text,
+            fontsize=12,
+            bbox=dict(boxstyle="round", facecolor="lightblue", alpha=0.5),
+        )
+
+    plt.tight_layout()
+
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight")
+        print(f"Delta plot saved to {save_path}")
+
+    final_pnl = profit_df["profits"].iloc[-1] if profit_df is not None else 0
+
+    result = {
+        "final_pnl": final_pnl,
+        "delta_history": zscore_history,
+        "price_history": price_history,
+        "position_history": position_history,
+        "change_indices": change_indices,
+        "profit_df": profit_df,
+        "strategy_name": strategy_name,
+    }
+    return result
