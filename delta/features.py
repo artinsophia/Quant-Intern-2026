@@ -133,6 +133,8 @@ class FeatureExtractor:
         oi = abs(self.bid_volume_short - self.ask_volume_short)
         return oi / total_vol
 
+    
+
     def extract_all(self) -> Dict[str, Any]:
         return {
             "num_trades": self.last.get("num_trades", 0) - self.snap_slice[-2].get("num_trades", 0),
@@ -148,7 +150,11 @@ class FeatureExtractor:
             "alpha_05": self.alpha_05,
             "alpha_06": self.alpha_06,
             "alpha_07": self.alpha_07,
+            "hurst_exponent": calculate_hurst_exponent(
+                [snap.get("price_last", 0) for snap in self.snap_slice if snap.get("price_last") is not None]
+            ),
         }
+    
 
 
 def create_feature(
@@ -165,3 +171,64 @@ def latest_zscore(samples):
     if std == 0:
         return 0.0
     return (samples[-1] - mean) / std
+
+def calculate_hurst_exponent(prices: List[float], max_lag: int = 20) -> float:
+    if len(prices) < 10:
+        return 0.5
+
+    returns = np.diff(np.log(prices))
+    if len(returns) < 5:
+        return 0.5
+
+    lags = range(2, min(max_lag, len(returns)))
+    tau = []
+
+    for lag in lags:
+        n_blocks = len(returns) // lag
+        if n_blocks == 0:
+            tau.append(0.0)
+            continue
+
+        # 将 returns 重塑为 (n_blocks, lag) 的矩阵，丢弃末尾不足 lag 的部分
+        blocks = returns[:n_blocks * lag].reshape(n_blocks, lag)
+
+        # 计算每行的均值和标准差
+        mean_block = np.mean(blocks, axis=1)
+        std_block = np.std(blocks, axis=1, ddof=0)  # 总体标准差，与原代码一致
+
+        # 找出标准差大于0的行
+        valid = std_block > 0
+        if not np.any(valid):
+            tau.append(0.0)
+            continue
+
+        # 只保留有效行
+        blocks_valid = blocks[valid]
+        mean_valid = mean_block[valid]
+        std_valid = std_block[valid]
+
+        # 计算每行的累积和（按行）
+        cumsum_block = np.cumsum(blocks_valid, axis=1)
+
+        # 计算偏差累积和：cumsum(block - mean) = cumsum(block) - k * mean
+        # k 为列索引+1
+        k = np.arange(1, lag + 1)
+        cum_dev = cumsum_block - mean_valid[:, np.newaxis] * k
+
+        # 每行的 RS 值
+        rs = (np.max(cum_dev, axis=1) - np.min(cum_dev, axis=1)) / std_valid
+
+        # 取对数平均值
+        tau.append(np.log(np.mean(rs)))
+
+    # 过滤掉无效的 tau 值（0 表示该 lag 无有效子区间）
+    valid_tau = [(l, t) for l, t in zip(lags, tau) if t != 0.0]
+    if len(valid_tau) < 2:
+        return 0.5
+
+    lags_log = np.log([l for l, _ in valid_tau])
+    tau_vals = [t for _, t in valid_tau]
+
+    # 线性回归
+    hurst = np.polyfit(lags_log, tau_vals, 1)[0]
+    return max(0.0, min(1.0, hurst))

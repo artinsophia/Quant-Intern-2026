@@ -51,33 +51,17 @@ class XGBoostModel(BaseModel):
             y_train
         )
 
-        # 2. 准备早停参数
-        # 注意：在新版 XGBoost 中，早停可以直接在初始化或 fit 中定义
-        early_stop_params = {}
-        if self.early_stopping and X_valid is not None and y_valid is not None:
-            early_stop_params = {
-                "early_stopping_rounds": self.early_stopping.patience,
-                "eval_metric": self._get_xgboost_eval_metric(),
-            }
-            self.early_stopping.reset()
 
-        # 3. 创建并训练模型
-        # 我们把参数拆分开传给 fit，这样即使 callbacks 不好使，这里也能跑通
         self.model = xgb.XGBClassifier(**self.model_params)
 
-        if X_valid is not None and y_valid is not None:
-            eval_set = [(X_valid, y_valid)]
-            self.model.fit(
-                X_train,
-                y_train,
-                eval_set=eval_set,
-                verbose=False,
-                **early_stop_params,  # 使用字典解包传递早停参数
-            )
-            # 4. 优化阈值
-            self._optimize_threshold(X_valid, y_valid)
-        else:
-            self.model.fit(X_train, y_train, verbose=True)
+        eval_set = [(X_valid, y_valid)]
+        self.model.fit(
+            X_train,
+            y_train,
+            eval_set=eval_set,
+            verbose=100,
+        )
+        self._optimize_threshold(X_valid, y_valid)
 
         return self
 
@@ -130,8 +114,7 @@ class XGBoostModel(BaseModel):
         pos_count = (y_train == 1).sum()
         neg_count = (y_train == 0).sum()
         if pos_count > 0:
-            # 使用平方根平滑。例如 1:100 的比例，权重为 10 而不是 100
-            return math.sqrt(neg_count / pos_count)
+            return np.sqrt(neg_count / pos_count)
         return 1.0
 
     def _optimize_threshold(self, X_valid, y_valid):
@@ -156,34 +139,5 @@ class XGBoostModel(BaseModel):
             f"阈值优化完成: Best Threshold={self.best_threshold:.4f}, F{self.beta}={f_scores[best_idx]:.4f}"
         )
 
-    def _get_xgboost_eval_metric(self) -> str:
-        """将早停监控指标转换为XGBoost评估指标"""
-        if not self.early_stopping:
-            return "error"
-
-        monitor = self.early_stopping.monitor
-
-        # 移除前缀（如 "validation_0-"）
-        if "validation_0-" in monitor:
-            metric = monitor.replace("validation_0-", "")
-        elif "validation-" in monitor:
-            metric = monitor.replace("validation-", "")
-        else:
-            metric = monitor
-
-        # 映射到XGBoost支持的指标
-        metric_map = {
-            "error": "error",
-            "logloss": "logloss",
-            "auc": "auc",
-            "merror": "merror",
-            "mlogloss": "mlogloss",
-            "mae": "mae",
-            "mse": "mse",
-            "rmse": "rmse",
-            "mape": "mape",
-        }
-
-        return metric_map.get(metric, "error")
 
 

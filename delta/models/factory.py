@@ -3,7 +3,6 @@ from .base import BaseModel
 from .xgboost_model import XGBoostModel
 from .linear_model import LinearModel
 from .ensemble_model import EnsembleModel
-from .early_stopping import get_default_early_stopping_params
 
 
 class ModelFactory:
@@ -111,21 +110,5 @@ class ModelFactory:
 
         params = default_params.get(model_type.lower(), {}).copy()
 
-        # 如果需要，添加早停参数
-        if include_early_stopping:
-            early_stopping_params = get_default_early_stopping_params(model_type)
-            params["early_stopping"] = early_stopping_params
-
         return params
 
-    @classmethod
-    def get_default_early_stopping_params(cls, model_type: str) -> Dict[str, Any]:
-        """获取指定模型类型的默认早停参数
-
-        Args:
-            model_type: 模型类型
-
-        Returns:
-            默认早停参数字典
-        """
-        return get_default_early_stopping_params(model_type)
