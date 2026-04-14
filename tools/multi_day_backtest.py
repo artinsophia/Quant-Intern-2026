@@ -74,7 +74,7 @@ def backtest_multi_days(
                 # 构造当日摘要
                 day_data = {
                     "trade_ymd": trade_ymd,
-                    "profits": last_row["profits"].values[0],
+                    "profits": round(last_row["profits"].values[0],2),
                     "trades": int(trade_count),
                 }
                 all_day_summaries.append(day_data)

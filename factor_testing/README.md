@@ -1,358 +1,412 @@
-# 因子测试框架
+# 因子测试框架 (Factor Testing Framework)
 
-用于评估交易因子预测能力和有效性的完整框架。
-
-## 目录结构
-
-```
-factor_testing/
-├── README.md                    # 本文档
-├── __init__.py                  # 包初始化
-├── test_factor_performance.py   # 主测试脚本
-├── example_usage.py             # 使用示例
-├── utils/                       # 工具模块
-│   ├── __init__.py
-│   └── data_loader.py           # 数据加载工具
-├── metrics/                     # 评估指标模块
-│   ├── __init__.py
-│   ├── ic_analysis.py           # IC值分析
-│   └── group_backtest.py        # 分组回测
-└── visualization/               # 可视化模块
-    ├── __init__.py
-    └── plot_factors.py          # 因子可视化
-```
+一个完整的因子IC等指标计算框架，提供标准化的接口用于因子测试、分析和报告生成。
 
 ## 功能特性
 
-### 1. IC值分析
-- **信息系数(IC)**: 衡量因子与未来收益的相关性
-- **IC衰减**: 分析因子预测能力的持续性
-- **ICIR**: IC信息比率，衡量因子稳定性
-- **滚动IC**: 动态观察因子表现
+- **因子数据管理**: 加载、存储、预处理因子数据
+- **IC计算**: Pearson IC、Spearman Rank IC、Kendall Tau
+- **综合指标**: IR（信息比率）、换手率、衰减率、分组收益
+- **分组测试**: 分层回测、多空组合构建、单调性检验
+- **可视化报告**: 自动生成图表和文本报告
+- **批量处理**: 支持多个因子的批量测试和比较
 
-### 2. 分组回测
-- **分组方法**: 分位数分组、等间距分组
-- **分组表现**: 计算各分组收益率、夏普比率、胜率
-- **多空组合**: 构建最高组-最低组多空组合
-- **单调性检验**: 验证因子区分能力
+## 安装
 
-### 3. 可视化
-- **IC分析图表**: 热力图、排名、衰减曲线、分布
-- **分组表现图表**: 收益率、夏普比率、胜率
-- **相关性矩阵**: 因子间相关性分析
-- **综合报告**: 多图组合的综合评估
+```bash
+# 将factor_testing目录添加到Python路径
+import sys
+sys.path.append('/path/to/factor_testing')
+```
 
-### 4. 数据支持
-- **真实数据**: 支持从`base_tool`加载市场数据
-- **模拟数据**: 内置模拟数据生成器
-- **多日数据**: 支持加载多日数据合并分析
+## 依赖库
+
+- pandas >= 1.0.0
+- numpy >= 1.18.0
+- scipy >= 1.4.0
+- matplotlib >= 3.1.0
+- seaborn >= 0.10.0
+- scikit-learn >= 0.22.0 (用于中性化处理)
 
 ## 快速开始
 
-### 安装依赖
-```bash
-# 确保在正确的Python环境
-cd /home/jovyan/work/tactics_demo
-```
+### 1. 基本使用
 
-### 运行示例
-```bash
-# 运行基础示例
-cd factor_testing
-python example_usage.py
-
-# 运行快速测试（使用模拟数据）
-python test_factor_performance.py --quick
-
-# 运行完整测试（使用真实数据）
-python test_factor_performance.py --instrument 511520 --start 20260202 --end 20260210
-```
-
-### 命令行参数
-```bash
-python test_factor_performance.py --help
-
-选项:
-  --instrument INSTRUMENT  标的ID (默认: 511520)
-  --start START          开始日期 YYYYMMDD (默认: 20260202)
-  --end END              结束日期 YYYYMMDD (默认: 20260210)
-  --mock                 使用模拟数据
-  --window WINDOW        特征窗口大小 (默认: 60)
-  --step STEP            滑动步长 (默认: 10)
-  --output OUTPUT        输出目录 (默认: ./factor_test_results)
-  --quick                快速测试（使用模拟数据）
-```
-
-## 使用示例
-
-### 1. 基础使用
 ```python
-from utils.data_loader import DataLoader
-from metrics.ic_analysis import ICAnalyzer
-from metrics.group_backtest import GroupBacktester
+import pandas as pd
+import numpy as np
+from factor_testing import FactorData, FactorMetrics, GroupTester, ReportGenerator
 
-# 初始化
-data_loader = DataLoader()
-ic_analyzer = ICAnalyzer(forward_periods=[1, 5, 10])
-group_tester = GroupBacktester(n_groups=5)
+# 准备数据（假设已有）
+# factor_values: DataFrame, 索引为(date, symbol), 每列为一个因子
+# forward_returns: Series, 索引与factor_values一致
 
-# 加载数据
-snap_slice = data_loader.load_snapshot_data('511520', '20260202')
+# 创建因子数据对象
+factor_data = FactorData(factor_values)
 
-# 提取特征
-features_df = data_loader.extract_features_from_snapshots(snap_slice)
+# 选择要测试的因子
+test_factor = factor_data.get_factor('momentum')
 
-# IC分析
-ic_results = ic_analyzer.analyze_factor_ic(features_df, price_series)
+# 计算因子指标
+metrics_calculator = FactorMetrics(test_factor, forward_returns)
+metrics = metrics_calculator.calculate_all_metrics(n_groups=5, freq='D')
 
-# 分组回测
-group_analysis = group_tester.run_complete_analysis(
-    features_df, price_series, 'best_bid'
+print(f"IC: {metrics['ic']:.4f}")
+print(f"IR: {metrics['ir']:.4f}")
+print(f"多空组合夏普: {metrics['long_short_sharpe']:.4f}")
+```
+
+### 2. 分组测试
+
+```python
+# 运行分组测试
+group_tester = GroupTester(test_factor, forward_returns)
+group_results = group_tester.run_comprehensive_test(n_groups=5)
+
+# 查看多空组合表现
+if 'long_short' in group_results:
+    ls = group_results['long_short']
+    print(f"平均收益: {ls['mean_return'] * 100:.2f}%")
+    print(f"夏普比率: {ls['sharpe_ratio']:.3f}")
+    print(f"胜率: {ls['win_rate'] * 100:.1f}%")
+```
+
+### 3. 生成完整报告
+
+```python
+# 生成可视化报告
+report_gen = ReportGenerator(
+    factor_name='momentum',
+    factor_data=test_factor,
+    forward_returns=forward_returns
+)
+
+# 生成文本摘要
+report_text = report_gen.generate_summary_report(
+    n_groups=5, method='quantile', freq='D'
+)
+print(report_text)
+
+# 保存完整报告（包含图表）
+report_gen.save_report(
+    output_dir='./factor_analysis_report',
+    n_groups=5,
+    method='quantile',
+    freq='D'
 )
 ```
 
-### 2. 自定义分析
+## 核心模块
+
+### FactorData - 因子数据管理
+
 ```python
-# 自定义IC分析
-custom_ic = ICAnalyzer(
-    forward_periods=[1, 3, 5, 10, 20, 30]  # 更多周期
+from factor_testing import FactorData
+
+# 从CSV加载
+factor_data = FactorData().load_from_csv(
+    'factors.csv',
+    date_col='date',
+    symbol_col='symbol',
+    factor_cols=['momentum', 'value', 'quality']
 )
 
-# 自定义分组
-custom_group = GroupBacktester(
-    n_groups=10,        # 更多分组
-    group_method='equal' # 等间距分组
+# 从字典加载
+factor_dict = {
+    'momentum': momentum_df,  # DataFrame: date × symbol
+    'value': value_df,
+    'quality': quality_df
+}
+factor_data = FactorData().load_from_dict(factor_dict)
+
+# 获取因子数据
+momentum = factor_data.get_factor('momentum')
+all_factors = factor_data.get_factors(['momentum', 'value'])
+
+# 添加新因子
+factor_data.add_factor('new_factor', new_factor_series)
+
+# 获取统计信息
+stats = factor_data.get_factor_stats('momentum')
+```
+
+### FactorPreprocessor - 因子预处理
+
+```python
+from factor_testing.utils import FactorPreprocessor
+
+# 去极值
+winsorized = FactorPreprocessor.winsorize(
+    factor_series, method='quantile', limits=0.05
 )
 
-# 计算滚动IC
-ic_series = custom_ic.calculate_ic_series(
-    factor_df, price_series, 'factor_name',
-    period=1, rolling_window=50
+# 标准化
+standardized = FactorPreprocessor.standardize(
+    winsorized, method='zscore'
 )
+
+# 中性化（需要暴露度数据）
+neutralized = FactorPreprocessor.neutralize(
+    standardized, exposure_data, method='linear'
+)
+
+# 预处理流水线
+preprocessing_steps = [
+    {'name': 'winsorize', 'params': {'method': 'quantile', 'limits': 0.05}},
+    {'name': 'fill_missing', 'params': {'method': 'mean'}},
+    {'name': 'standardize', 'params': {'method': 'zscore'}}
+]
+
+processed = FactorPreprocessor.pipeline(factor_series, preprocessing_steps)
+```
+
+### ICCalculator - IC计算
+
+```python
+from factor_testing.metrics import ICCalculator
+
+# 创建计算器
+ic_calculator = ICCalculator(factor_series, forward_returns)
+
+# 计算IC
+ic_pearson = ic_calculator.calculate_ic(method='pearson')
+ic_spearman = ic_calculator.calculate_ic(method='spearman')  # Rank IC
+ic_kendall = ic_calculator.calculate_ic(method='kendall')
+
+# 计算IC时间序列
+ic_series = ic_calculator.calculate_ic_series(freq='D', method='pearson')
 
 # 计算IC衰减
-ic_decay = custom_ic.calculate_ic_decay(
-    factor_df, price_series, 'factor_name',
-    max_period=30
-)
+ic_decay = ic_calculator.calculate_ic_decay(max_lag=10, method='pearson')
+
+# 计算IC统计指标
+ic_stats = ic_calculator.calculate_ic_stats(method='pearson', freq='D')
 ```
 
-### 3. 可视化
+### FactorMetrics - 综合指标
+
 ```python
-from visualization.plot_factors import FactorVisualizer
+from factor_testing.metrics import FactorMetrics
 
-visualizer = FactorVisualizer(figsize=(12, 8))
+# 创建计算器
+metrics_calculator = FactorMetrics(factor_series, forward_returns)
 
-# IC分析图表
-ic_fig = visualizer.plot_ic_analysis(ic_results, "因子IC分析")
-
-# 分组表现图表
-group_fig = visualizer.plot_group_performance(
-    group_performance, "因子分组表现"
+# 计算所有指标
+all_metrics = metrics_calculator.calculate_all_metrics(
+    n_groups=5, freq='D', method='pearson'
 )
 
-# 相关性矩阵
-corr_fig = visualizer.plot_factor_correlation(
-    features_df, "因子相关性"
-)
+# 计算IR
+ir = metrics_calculator.calculate_ir(freq='D', method='pearson')
 
-# 综合报告
-comp_fig = visualizer.plot_comprehensive_report(
-    ic_results, group_performance, features_df,
-    "因子综合评估"
+# 计算换手率
+turnover = metrics_calculator.calculate_turnover(n_groups=5, freq='D')
+
+# 计算衰减率
+decay_info = metrics_calculator.calculate_decay_rate(max_lag=10)
+
+# 计算分组收益
+group_returns = metrics_calculator.calculate_group_returns(n_groups=5)
+
+# 批量计算多个因子
+batch_metrics = FactorMetrics.batch_calculate_metrics(
+    factor_df, forward_returns, n_groups=5, freq='D'
 )
 ```
 
-## 评估指标说明
+### GroupTester - 分组测试
 
-### IC值 (Information Coefficient)
-- **范围**: -1 到 1
-- **解释**: 
-  - > 0.05: 强正相关
-  - 0.02-0.05: 中等正相关  
-  - 0-0.02: 弱正相关
-  - 0: 无相关性
-  - < 0: 负相关
-
-### ICIR (IC Information Ratio)
-- **公式**: IC均值 / IC标准差
-- **解释**: 
-  - > 1.0: 优秀
-  - 0.5-1.0: 良好
-  - 0-0.5: 一般
-  - < 0: 不稳定
-
-### 分组回测指标
-1. **平均收益率**: 分组平均收益
-2. **夏普比率**: 风险调整后收益
-3. **胜率**: 正收益比例
-4. **最大回撤**: 最大亏损幅度
-5. **单调性**: 分组收益是否单调
-
-## 输出文件
-
-测试完成后会在输出目录生成以下文件：
-
-```
-factor_test_results/
-├── features.csv                 # 特征数据
-├── ic_analysis.csv             # IC分析结果
-├── factor_stats.csv            # 因子统计
-├── group_performance_*.csv     # 分组表现结果
-├── ic_analysis.png             # IC分析图表
-├── factor_correlation.png      # 相关性矩阵
-├── group_performance_*.png     # 分组表现图表
-├── comprehensive_report.png    # 综合报告
-└── test_report.txt            # 文本报告
-```
-
-## 与现有代码集成
-
-### 1. 使用优化后的特征提取器
 ```python
-# 导入优化后的特征提取器
-sys.path.append('/home/jovyan/work/tactics_demo/delta')
-from features import FeatureExtractor, create_feature
+from factor_testing.analysis import GroupTester
 
-# 使用优化版本（已添加Hurst指数）
-extractor = FeatureExtractor(snap_slice, short_window=60)
-features = extractor.extract_all()  # 包含hurst_exponent
+# 创建测试器
+group_tester = GroupTester(factor_series, forward_returns)
+
+# 创建分组
+groups = group_tester.create_groups(n_groups=5, method='quantile')
+
+# 计算分组表现
+performance = group_tester.calculate_group_performance(
+    n_groups=5, method='quantile', rebalance_freq='D'
+)
+
+# 创建多空组合
+long_short_returns = group_tester.create_long_short_portfolio(
+    n_groups=5, method='quantile', top_group=0, bottom_group=4
+)
+
+# 计算分组换手率
+turnover_results = group_tester.calculate_group_turnover(n_groups=5)
+
+# 运行全面测试
+comprehensive_results = group_tester.run_comprehensive_test(
+    n_groups=5, method='quantile', rebalance_freq='D'
+)
+
+# 比较多个因子
+factor_dict = {
+    'factor1': factor1_series,
+    'factor2': factor2_series,
+    'factor3': factor3_series
+}
+comparison = GroupTester.compare_factors(
+    factor_dict, forward_returns, n_groups=5
+)
 ```
 
-### 2. 在策略中使用因子测试
+### ReportGenerator - 报告生成
+
 ```python
-class EnhancedStrategy:
-    def __init__(self):
-        self.factor_tester = FactorPerformanceTester()
-        
-    def evaluate_factors(self, snap_slice):
-        # 提取特征
-        features_df = self.data_loader.extract_features_from_snapshots(snap_slice)
-        
-        # 评估因子
-        ic_results = self.ic_analyzer.analyze_factor_ic(features_df, price_series)
-        
-        # 选择最佳因子
-        best_factor = self.select_best_factor(ic_results)
-        
-        return best_factor
+from factor_testing.analysis import ReportGenerator
+
+# 创建报告生成器
+report_gen = ReportGenerator(
+    factor_name='momentum',
+    factor_data=factor_series,
+    forward_returns=forward_returns
+)
+
+# 生成图表
+fig1 = report_gen.generate_factor_distribution_plot()
+fig2 = report_gen.generate_ic_analysis_plot(freq='D', method='pearson')
+fig3 = report_gen.generate_group_performance_plot(n_groups=5)
+fig4 = report_gen.generate_turnover_analysis_plot(n_groups=5)
+
+# 生成文本报告
+report_text = report_gen.generate_summary_report(
+    n_groups=5, method='quantile', freq='D', ic_method='pearson'
+)
+
+# 保存完整报告
+report_gen.save_report(
+    output_dir='./factor_report',
+    n_groups=5,
+    method='quantile',
+    freq='D',
+    ic_method='pearson'
+)
 ```
 
-## 最佳实践
+## 数据格式要求
 
-### 1. 因子评估流程
-1. **数据准备**: 加载清洗后的市场数据
-2. **特征提取**: 计算所有候选因子
-3. **IC分析**: 评估因子预测能力
-4. **分组验证**: 验证因子区分能力
-5. **稳定性检验**: 检查因子表现稳定性
-6. **综合评估**: 结合多个指标选择因子
+### 因子数据格式
 
-### 2. 避免常见问题
-- **过拟合**: 使用样本外数据验证
-- **幸存者偏差**: 考虑所有因子，不只是表现好的
-- **数据窥探**: 避免使用未来信息
-- **多重检验**: 对多个因子进行Bonferroni校正
+推荐使用MultiIndex格式：
 
-### 3. 因子选择标准
-1. **IC绝对值** > 0.02
-2. **ICIR** > 0.5
-3. **胜率** > 55%
-4. **单调性**显著
-5. **稳定性**高（滚动IC波动小）
+```python
+# DataFrame格式，索引为(date, symbol)
+factor_df = pd.DataFrame({
+    'momentum': momentum_values,
+    'value': value_values,
+    'quality': quality_values
+}, index=pd.MultiIndex.from_product([dates, symbols], names=['date', 'symbol']))
+```
+
+或者使用面板格式字典：
+
+```python
+# 字典格式，每个因子为date × symbol的DataFrame
+factor_dict = {
+    'momentum': momentum_panel,  # DataFrame: dates × symbols
+    'value': value_panel,
+    'quality': quality_panel
+}
+```
+
+### 收益数据格式
+
+```python
+# Series格式，索引与因子数据一致
+forward_returns = pd.Series(
+    returns_values,
+    index=pd.MultiIndex.from_product([dates, symbols], names=['date', 'symbol']),
+    name='forward_return'
+)
+```
+
+## 示例程序
+
+运行示例程序查看完整功能：
+
+```python
+python factor_testing/example.py
+```
+
+## 与现有项目集成
+
+如果已有因子数据和收益数据，可以这样集成：
+
+```python
+# 1. 导入模块
+from factor_testing import FactorData, FactorMetrics, GroupTester, ReportGenerator
+
+# 2. 准备数据（假设已有）
+# factor_values: 因子值，DataFrame格式
+# returns: 未来收益，Series格式
+
+# 3. 创建因子数据对象
+factor_data = FactorData(factor_values)
+
+# 4. 选择要测试的因子
+test_factor = factor_data.get_factor('your_factor_name')
+
+# 5. 计算因子指标
+metrics_calculator = FactorMetrics(test_factor, returns)
+metrics = metrics_calculator.calculate_all_metrics(n_groups=5, freq='D')
+
+# 6. 运行分组测试
+group_tester = GroupTester(test_factor, returns)
+group_results = group_tester.run_comprehensive_test(n_groups=5)
+
+# 7. 生成报告
+report_gen = ReportGenerator(
+    factor_name='your_factor_name',
+    factor_data=test_factor,
+    forward_returns=returns
+)
+
+# 保存完整报告
+report_gen.save_report(
+    output_dir='./factor_analysis_report',
+    n_groups=5,
+    method='quantile',
+    freq='D'
+)
+```
+
+## 输出报告内容
+
+保存的报告包含：
+
+1. **图表文件**:
+   - `factor_distribution.png`: 因子分布图
+   - `ic_analysis.png`: IC分析图
+   - `group_performance.png`: 分组表现图
+   - `turnover_analysis.png`: 换手率分析图
+
+2. **文本文件**:
+   - `factor_report.txt`: 文本摘要报告
+
+3. **数据文件**:
+   - `factor_data.csv`: 因子数据
+   - `forward_returns.csv`: 未来收益数据
+
+## 注意事项
+
+1. **数据对齐**: 确保因子数据和收益数据的索引完全一致
+2. **缺失值处理**: 框架会自动处理缺失值，但建议先进行适当的预处理
+3. **计算效率**: 对于大规模数据，建议使用适当的数据分块处理
+4. **内存使用**: 分组测试和报告生成可能需要较多内存，特别是对于大量标的和长时间序列
 
 ## 扩展开发
 
-### 添加新评估指标
-```python
-# 在metrics/目录下创建新模块
-class NewMetricAnalyzer:
-    def calculate_metric(self, factor_values, returns):
-        # 实现新指标
-        pass
-```
+框架设计为可扩展的，可以通过以下方式扩展功能：
 
-### 添加新可视化
-```python
-# 在visualization/目录下扩展
-class ExtendedVisualizer(FactorVisualizer):
-    def plot_new_chart(self, data):
-        # 实现新图表
-        pass
-```
-
-### 集成机器学习
-```python
-# 可以扩展为ML因子评估
-from sklearn.ensemble import RandomForestRegressor
-
-class MLFactorEvaluator:
-    def evaluate_with_ml(self, features, returns):
-        # 使用机器学习评估因子重要性
-        model = RandomForestRegressor()
-        model.fit(features, returns)
-        importance = model.feature_importances_
-        return importance
-```
-
-## 故障排除
-
-### 常见问题
-1. **无法导入base_tool**
-   - 检查路径: `/home/jovyan/base_demo`
-   - 确保模块存在
-
-2. **内存不足**
-   - 减少数据量（使用`--window`和`--step`参数）
-   - 使用模拟数据测试（`--mock`）
-
-3. **可视化错误**
-   - 确保matplotlib已安装
-   - 检查中文字体配置
-
-4. **IC值全部为0**
-   - 检查数据对齐
-   - 验证价格序列有效性
-   - 确保有足够的数据点
-
-### 调试建议
-```python
-# 启用详细日志
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
-# 检查数据
-print(f"数据长度: {len(snap_slice)}")
-print(f"特征形状: {features_df.shape}")
-print(f"价格序列: {price_series.head()}")
-
-# 验证计算
-test_ic = ic_analyzer.calculate_ic(
-    features_df['best_bid'], 
-    price_series.shift(-1), 
-    'spearman'
-)
-print(f"测试IC值: {test_ic}")
-```
-
-## 更新日志
-
-### v1.0.0 (2024-01-20)
-- 初始版本发布
-- 完整的IC分析框架
-- 分组回测功能
-- 丰富的可视化图表
-- 模拟数据支持
-- 与现有特征提取器集成
-
-## 贡献指南
-
-1. Fork项目
-2. 创建功能分支
-3. 提交更改
-4. 推送到分支
-5. 创建Pull Request
+1. **自定义指标**: 继承`FactorMetrics`类添加新的指标计算方法
+2. **自定义分组方法**: 在`GroupTester`中添加新的分组逻辑
+3. **自定义图表**: 继承`ReportGenerator`类添加新的可视化图表
+4. **自定义报告格式**: 修改`ReportGenerator`的输出格式
 
 ## 许可证
 
-本项目仅供研究使用。
+MIT License

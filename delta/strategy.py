@@ -26,8 +26,13 @@ class StrategyDemo:
         self.feature_buffer = deque(maxlen=self.x_window)
         self.delta_buffer = deque(maxlen=self.x_window)
 
-        self.trailing_stop_pct = param_dict.get("trailing_stop_pct", 0.002)
+        self.trailing_stop_pct = param_dict.get("trailing_stop_pct", 0.001)
         self.max_favorable_price = 0
+
+        self.max = 1.0
+        self.min = 1000.0
+        self.price_sum = 0.0
+        self.price_count = 0
 
         self.prev_signal = 0
 
@@ -35,6 +40,8 @@ class StrategyDemo:
         price = snap.get("price_last")
         if not price:
             return
+        self.max = max(self.max, price)
+        self.min = min(self.min, price)
 
         delta = sum(vol for _, vol in snap["buy_trade"][: self.standard_num]) - sum(
             vol for _, vol in snap["sell_trade"][: self.standard_num]
@@ -64,11 +71,13 @@ class StrategyDemo:
                 prob = proba[0, 1]  # numpy数组
         else:
             return
+        
+        self.price_sum += price
+        self.price_count += 1
+        self.avg_price_all = self.price_sum / self.price_count
+        self.trailing_stop_pct = 0.002 if (self.max - self.min) / self.avg_price_all > 0.005 else 0.001
 
-        dynamic_pct = self.trailing_stop_pct * (1 + abs(std_delta) * self.k_pct)
-
-        dynamic_pct = max(self.trailing_stop_pct, min(dynamic_pct, 4*self.trailing_stop_pct))
-
+        dynamic_pct = self.trailing_stop_pct
         current_signal = self.prev_signal
 
         if self.position_last == 1:

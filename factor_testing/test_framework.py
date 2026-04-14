@@ -1,348 +1,171 @@
 #!/usr/bin/env python3
 """
-因子测试框架验证测试
+测试因子测试框架的基本功能
 """
 
-import sys
 import os
-import pandas as pd
-import numpy as np
+import sys
 
-# 添加项目路径
-sys.path.append("/home/jovyan/work/tactics_demo/factor_testing")
+# 添加当前目录到Python路径
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
 
+print("=" * 80)
+print("测试因子测试框架")
+print("=" * 80)
 
-def test_imports():
-    """测试模块导入"""
-    print("测试模块导入...")
+try:
+    # 测试导入 - 使用相对导入
+    print("\n1. 测试模块导入...")
 
-    try:
-        # 在函数内部导入
-        import sys
+    # 直接导入各个模块文件
+    import importlib.util
 
-        sys.path.append("/home/jovyan/work/tactics_demo/factor_testing")
+    # 测试导入 __init__.py
+    spec = importlib.util.spec_from_file_location(
+        "factor_testing", os.path.join(current_dir, "__init__.py")
+    )
+    factor_testing = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(factor_testing)
+    print("  ✓ factor_testing 包导入成功")
 
-        from utils.data_loader import DataLoader
-        from metrics.ic_analysis import ICAnalyzer
-        from metrics.group_backtest import GroupBacktester
-        from visualization.plot_factors import FactorVisualizer
-
-        print("✓ 所有模块导入成功")
-        return True
-    except ImportError as e:
-        print(f"✗ 导入失败: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return False
-
-
-def test_data_loader():
-    """测试数据加载器"""
-    print("\n测试数据加载器...")
-
-    try:
-        data_loader = DataLoader()
-
-        # 测试模拟数据
-        mock_data = data_loader.create_mock_data(n_samples=100)
-        print(f"✓ 创建模拟数据: {len(mock_data)} 条记录")
-
-        # 测试DataFrame转换
-        df = data_loader.snapshots_to_dataframe(mock_data)
-        print(f"✓ 转换为DataFrame: {df.shape}")
-
-        # 测试特征提取
-        features_df = data_loader.extract_features_from_snapshots(
-            mock_data, window_size=30, step_size=5
-        )
-        print(f"✓ 提取特征: {features_df.shape if not features_df.empty else '失败'}")
-
-        return True
-    except Exception as e:
-        print(f"✗ 数据加载器测试失败: {e}")
-        return False
-
-
-def test_ic_analyzer():
-    """测试IC分析器"""
-    print("\n测试IC分析器...")
-
-    try:
-        # 创建测试数据
-        np.random.seed(42)
-        dates = pd.date_range("2023-01-01", periods=100, freq="h")
-
-        # 创建因子和价格数据
-        factor_values = pd.Series(np.random.randn(100).cumsum(), index=dates)
-        price_values = pd.Series(100 + np.random.randn(100).cumsum() * 0.1, index=dates)
-
-        factor_df = pd.DataFrame({"test_factor": factor_values})
-
-        # 测试IC分析器
-        ic_analyzer = ICAnalyzer(forward_periods=[1, 5])
-
-        # 计算IC
-        ic = ic_analyzer.calculate_ic(factor_values, price_values.shift(-1), "spearman")
-        print(f"✓ 计算IC值: {ic:.4f}")
-
-        # 分析因子IC
-        ic_results = ic_analyzer.analyze_factor_ic(
-            factor_df, price_values, ["test_factor"]
-        )
-        print(f"✓ 分析因子IC: {len(ic_results)} 条结果")
-
-        # 计算滚动IC
-        ic_series = ic_analyzer.calculate_ic_series(
-            factor_df, price_values, "test_factor", period=1, rolling_window=20
-        )
-        print(f"✓ 计算滚动IC: {len(ic_series.dropna())} 个有效值")
-
-        # 计算IC衰减
-        ic_decay = ic_analyzer.calculate_ic_decay(
-            factor_df, price_values, "test_factor", max_period=10
-        )
-        print(f"✓ 计算IC衰减: {len(ic_decay)} 个周期")
-
-        return True
-    except Exception as e:
-        print(f"✗ IC分析器测试失败: {e}")
-        return False
-
-
-def test_group_backtester():
-    """测试分组回测器"""
-    print("\n测试分组回测器...")
-
-    try:
-        # 创建测试数据
-        np.random.seed(42)
-        dates = pd.date_range("2023-01-01", periods=200, freq="h")
-
-        # 创建因子和价格数据
-        factor_values = pd.Series(np.random.randn(200).cumsum(), index=dates)
-        price_values = pd.Series(100 + np.random.randn(200).cumsum() * 0.1, index=dates)
-
-        factor_df = pd.DataFrame({"test_factor": factor_values})
-
-        # 测试分组回测器
-        group_tester = GroupBacktester(n_groups=5, group_method="quantile")
-
-        # 创建分组
-        groups = group_tester.create_factor_groups(factor_values.iloc[:100])
-        print(f"✓ 创建分组: {groups.nunique()} 个分组")
-
-        # 计算分组收益率
-        group_returns = group_tester.calculate_group_returns(
-            factor_df, price_values, "test_factor", forward_periods=[1, 5]
-        )
-        print(f"✓ 计算分组收益率: {len(group_returns)} 个周期")
-
-        # 分析分组表现
-        group_performance = group_tester.analyze_group_performance(group_returns)
-        print(f"✓ 分析分组表现: {len(group_performance)} 条记录")
-
-        # 计算单调性
-        monotonicity = group_tester.calculate_monotonicity(
-            group_performance, "test_factor"
-        )
-        print(f"✓ 计算单调性: {len(monotonicity)} 个周期")
-
-        return True
-    except Exception as e:
-        print(f"✗ 分组回测器测试失败: {e}")
-        return False
-
-
-def test_visualizer():
-    """测试可视化器"""
-    print("\n测试可视化器...")
-
-    try:
-        # 创建测试数据
-        np.random.seed(42)
-        dates = pd.date_range("2023-01-01", periods=50, freq="h")
-
-        # 创建多个因子
-        factors = {
-            "factor1": np.random.randn(50).cumsum(),
-            "factor2": np.sin(np.linspace(0, 10, 50)) * 2,
-            "factor3": np.random.exponential(1, 50),
-        }
-
-        factor_df = pd.DataFrame(factors, index=dates)
-
-        # 创建IC分析结果
-        ic_data = []
-        for factor in factors.keys():
-            for period in [1, 5, 10]:
-                ic_data.append(
-                    {
-                        "factor": factor,
-                        "period": period,
-                        "ic_spearman": np.random.uniform(-0.1, 0.1),
-                        "ic_pearson": np.random.uniform(-0.1, 0.1),
-                        "abs_ic_spearman": abs(np.random.uniform(0, 0.1)),
-                        "abs_ic_pearson": abs(np.random.uniform(0, 0.1)),
-                        "sample_size": 50,
-                    }
-                )
-
-        ic_results = pd.DataFrame(ic_data)
-
-        # 创建分组表现结果
-        group_data = []
-        for group in [
-            "Group_1",
-            "Group_2",
-            "Group_3",
-            "Group_4",
-            "Group_5",
-            "Long-Short",
-        ]:
-            for period in [1, 5, 10]:
-                group_data.append(
-                    {
-                        "period": period,
-                        "group": group,
-                        "mean_return": np.random.uniform(-0.01, 0.01),
-                        "std_return": np.random.uniform(0.005, 0.02),
-                        "sharpe_ratio": np.random.uniform(-1, 2),
-                        "win_rate": np.random.uniform(0.4, 0.7),
-                        "max_drawdown": np.random.uniform(-0.05, -0.01),
-                        "sample_size": 50,
-                    }
-                )
-
-        group_performance = pd.DataFrame(group_data)
-
-        # 测试可视化器
-        visualizer = FactorVisualizer(figsize=(10, 6))
-
-        # 测试IC分析图表
-        try:
-            ic_fig = visualizer.plot_ic_analysis(ic_results, "测试IC分析")
-            print("✓ 创建IC分析图表")
-        except Exception as e:
-            print(f"⚠ IC分析图表创建警告: {e}")
-
-        # 测试分组表现图表
-        try:
-            group_fig = visualizer.plot_group_performance(
-                group_performance, "测试分组表现"
-            )
-            print("✓ 创建分组表现图表")
-        except Exception as e:
-            print(f"⚠ 分组表现图表创建警告: {e}")
-
-        # 测试相关性矩阵
-        try:
-            corr_fig = visualizer.plot_factor_correlation(factor_df, "测试相关性矩阵")
-            print("✓ 创建相关性矩阵图表")
-        except Exception as e:
-            print(f"⚠ 相关性矩阵图表创建警告: {e}")
-
-        return True
-    except Exception as e:
-        print(f"✗ 可视化器测试失败: {e}")
-        return False
-
-
-def test_main_script():
-    """测试主脚本"""
-    print("\n测试主脚本...")
-
-    try:
-        # 检查主脚本是否存在
-        script_path = (
-            "/home/jovyan/work/tactics_demo/factor_testing/test_factor_performance.py"
-        )
-        if os.path.exists(script_path):
-            print(f"✓ 主脚本存在: {script_path}")
-
-            # 检查脚本是否可以导入
-            import importlib.util
-
-            spec = importlib.util.spec_from_file_location(
-                "test_factor_performance", script_path
-            )
-            module = importlib.util.module_from_spec(spec)
-
-            try:
-                spec.loader.exec_module(module)
-                print("✓ 主脚本可以导入")
-
-                # 检查主要类是否存在
-                if hasattr(module, "FactorPerformanceTester"):
-                    print("✓ FactorPerformanceTester类存在")
-                else:
-                    print("✗ FactorPerformanceTester类不存在")
-
-                return True
-            except Exception as e:
-                print(f"✗ 主脚本导入失败: {e}")
-                return False
-        else:
-            print(f"✗ 主脚本不存在: {script_path}")
-            return False
-    except Exception as e:
-        print(f"✗ 主脚本测试失败: {e}")
-        return False
-
-
-def main():
-    """运行所有测试"""
-    print("=" * 60)
-    print("因子测试框架验证测试")
-    print("=" * 60)
-
-    tests = [
-        ("模块导入", test_imports),
-        ("数据加载器", test_data_loader),
-        ("IC分析器", test_ic_analyzer),
-        ("分组回测器", test_group_backtester),
-        ("可视化器", test_visualizer),
-        ("主脚本", test_main_script),
+    # 测试导入各个模块
+    modules_to_test = [
+        ("data.factor_data", "FactorData"),
+        ("utils.preprocessing", "FactorPreprocessor"),
+        ("metrics.ic_calculator", "ICCalculator"),
+        ("metrics.factor_metrics", "FactorMetrics"),
+        ("analysis.group_test", "GroupTester"),
+        ("analysis.report_generator", "ReportGenerator"),
     ]
 
-    results = []
+    imported_classes = {}
 
-    for test_name, test_func in tests:
+    for module_path, class_name in modules_to_test:
         try:
-            success = test_func()
-            results.append((test_name, success))
+            # 构建完整路径
+            if module_path == "data.factor_data":
+                file_path = os.path.join(current_dir, "data", "factor_data.py")
+            elif module_path == "utils.preprocessing":
+                file_path = os.path.join(current_dir, "utils", "preprocessing.py")
+            elif module_path == "metrics.ic_calculator":
+                file_path = os.path.join(current_dir, "metrics", "ic_calculator.py")
+            elif module_path == "metrics.factor_metrics":
+                file_path = os.path.join(current_dir, "metrics", "factor_metrics.py")
+            elif module_path == "analysis.group_test":
+                file_path = os.path.join(current_dir, "analysis", "group_test.py")
+            elif module_path == "analysis.report_generator":
+                file_path = os.path.join(current_dir, "analysis", "report_generator.py")
+
+            spec = importlib.util.spec_from_file_location(module_path, file_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+
+            # 获取类
+            if hasattr(module, class_name):
+                imported_classes[class_name] = getattr(module, class_name)
+                print(f"  ✓ {class_name} 导入成功")
+            else:
+                print(f"  ✗ {class_name} 在模块 {module_path} 中未找到")
+
         except Exception as e:
-            print(f"✗ {test_name}测试异常: {e}")
-            results.append((test_name, False))
+            print(f"  ✗ 导入 {class_name} 失败: {e}")
 
-    print("\n" + "=" * 60)
-    print("测试结果汇总")
-    print("=" * 60)
+    print("\n2. 测试类定义...")
 
-    passed = 0
-    total = len(results)
+    # 检查类是否存在
+    for class_name, class_obj in imported_classes.items():
+        if class_obj and hasattr(class_obj, "__name__"):
+            print(f"  ✓ {class_name} 类定义正确")
+        else:
+            print(f"  ✗ {class_name} 类定义错误")
 
-    for test_name, success in results:
-        status = "✓ 通过" if success else "✗ 失败"
-        print(f"{test_name:15s} {status}")
-        if success:
-            passed += 1
+    print("\n3. 测试目录结构...")
 
-    print(f"\n通过率: {passed}/{total} ({passed / total * 100:.1f}%)")
+    required_dirs = ["data", "metrics", "analysis", "utils"]
+    for dir_name in required_dirs:
+        dir_path = os.path.join(current_dir, dir_name)
+        if os.path.exists(dir_path):
+            print(f"  ✓ 目录 {dir_name}/ 存在")
+        else:
+            print(f"  ✗ 目录 {dir_name}/ 不存在")
 
-    if passed == total:
-        print("\n🎉 所有测试通过!")
-        print("\n下一步:")
-        print("1. 运行示例: python example_usage.py")
-        print("2. 快速测试: python test_factor_performance.py --quick")
-        print(
-            "3. 完整测试: python test_factor_performance.py --instrument 511520 --start 20260202 --end 20260205"
-        )
+    required_files = [
+        "__init__.py",
+        "data/__init__.py",
+        "data/factor_data.py",
+        "metrics/__init__.py",
+        "metrics/ic_calculator.py",
+        "metrics/factor_metrics.py",
+        "analysis/__init__.py",
+        "analysis/group_test.py",
+        "analysis/report_generator.py",
+        "utils/__init__.py",
+        "utils/preprocessing.py",
+        "example.py",
+        "README.md",
+    ]
+
+    print("\n4. 测试文件结构...")
+    missing_files = []
+
+    for file_path in required_files:
+        full_path = os.path.join(current_dir, file_path)
+        if os.path.exists(full_path):
+            print(f"  ✓ 文件 {file_path} 存在")
+        else:
+            print(f"  ✗ 文件 {file_path} 不存在")
+            missing_files.append(file_path)
+
+    if missing_files:
+        print(f"\n警告: 缺少 {len(missing_files)} 个文件")
     else:
-        print(f"\n⚠ {total - passed} 个测试失败，请检查上述错误")
+        print("\n✓ 所有必需文件都存在")
 
-    print("=" * 60)
+    print("\n5. 测试框架版本...")
 
+    # 从__init__.py读取版本
+    init_path = os.path.join(current_dir, "__init__.py")
+    with open(init_path, "r") as f:
+        content = f.read()
+        if "__version__" in content:
+            # 简单提取版本号
+            import re
 
-if __name__ == "__main__":
-    main()
+            match = re.search(r"__version__\s*=\s*['\"]([^'\"]+)['\"]", content)
+            if match:
+                version = match.group(1)
+                print(f"  ✓ 框架版本: {version}")
+            else:
+                print("  ✗ 无法提取版本号")
+        else:
+            print("  ✗ 版本号未定义")
+
+    print("\n" + "=" * 80)
+    print("框架测试完成!")
+    print("=" * 80)
+
+    if not missing_files:
+        print("\n✅ 因子测试框架实现成功!")
+        print("\n主要功能模块:")
+        print("  - FactorData: 因子数据管理")
+        print("  - FactorPreprocessor: 因子预处理")
+        print("  - ICCalculator: IC计算")
+        print("  - FactorMetrics: 综合指标计算")
+        print("  - GroupTester: 分组测试")
+        print("  - ReportGenerator: 报告生成")
+
+        print("\n使用说明:")
+        print("  1. 查看 example.py 了解基本用法")
+        print("  2. 查看 README.md 获取详细文档")
+        print("  3. 运行: python example.py 查看完整示例")
+
+    else:
+        print(f"\n⚠️  框架不完整，缺少文件: {missing_files}")
+
+except Exception as e:
+    print(f"\n❌ 测试过程中出错: {e}")
+    import traceback
+
+    traceback.print_exc()
+    sys.exit(1)

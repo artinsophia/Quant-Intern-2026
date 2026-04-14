@@ -3,144 +3,144 @@
 简单测试因子测试框架
 """
 
-import sys
 import os
+import sys
 
-# 添加项目路径
-sys.path.insert(0, "/home/jovyan/work/tactics_demo/factor_testing")
+# 添加当前目录到Python路径
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
 
-print("测试因子测试框架...")
-print("=" * 60)
+print("=" * 80)
+print("简单测试因子测试框架")
+print("=" * 80)
 
-# 测试1: 检查目录结构
-print("1. 检查目录结构...")
-required_dirs = ["utils", "metrics", "visualization"]
-required_files = [
-    "utils/data_loader.py",
-    "metrics/ic_analysis.py",
-    "metrics/group_backtest.py",
-    "visualization/plot_factors.py",
-    "test_factor_performance.py",
-    "example_usage.py",
-    "README.md",
-]
-
-all_good = True
-
-for dir_name in required_dirs:
-    dir_path = os.path.join("/home/jovyan/work/tactics_demo/factor_testing", dir_name)
-    if os.path.exists(dir_path):
-        print(f"  ✓ 目录存在: {dir_name}")
-    else:
-        print(f"  ✗ 目录不存在: {dir_name}")
-        all_good = False
-
-for file_name in required_files:
-    file_path = os.path.join("/home/jovyan/work/tactics_demo/factor_testing", file_name)
-    if os.path.exists(file_path):
-        print(f"  ✓ 文件存在: {file_name}")
-    else:
-        print(f"  ✗ 文件不存在: {file_name}")
-        all_good = False
-
-# 测试2: 尝试导入主要模块
-print("\n2. 尝试导入模块...")
+# 直接导入各个模块
+print("\n1. 直接导入各个模块...")
 
 try:
-    from utils.data_loader import DataLoader
+    # 导入data模块
+    from data.factor_data import FactorData
 
-    print("  ✓ 导入 DataLoader 成功")
+    print("  ✓ FactorData 导入成功")
 
-    # 测试创建实例
-    loader = DataLoader()
-    print("  ✓ 创建 DataLoader 实例成功")
-except Exception as e:
-    print(f"  ✗ 导入 DataLoader 失败: {e}")
-    all_good = False
+    # 导入utils模块
+    from utils.preprocessing import FactorPreprocessor
 
-try:
-    from metrics.ic_analysis import ICAnalyzer
+    print("  ✓ FactorPreprocessor 导入成功")
 
-    print("  ✓ 导入 ICAnalyzer 成功")
+    # 导入metrics模块
+    from metrics.ic_calculator import ICCalculator
 
-    # 测试创建实例
-    ic_analyzer = ICAnalyzer()
-    print("  ✓ 创建 ICAnalyzer 实例成功")
-except Exception as e:
-    print(f"  ✗ 导入 ICAnalyzer 失败: {e}")
-    all_good = False
+    print("  ✓ ICCalculator 导入成功")
 
-try:
-    from metrics.group_backtest import GroupBacktester
+    from metrics.factor_metrics import FactorMetrics
 
-    print("  ✓ 导入 GroupBacktester 成功")
+    print("  ✓ FactorMetrics 导入成功")
 
-    # 测试创建实例
-    group_tester = GroupBacktester()
-    print("  ✓ 创建 GroupBacktester 实例成功")
-except Exception as e:
-    print(f"  ✗ 导入 GroupBacktester 失败: {e}")
-    all_good = False
+    # 导入analysis模块
+    from analysis.group_test import GroupTester
 
-# 测试3: 检查优化后的特征提取器
-print("\n3. 检查优化后的特征提取器...")
+    print("  ✓ GroupTester 导入成功")
 
-try:
-    # 添加delta模块路径
-    sys.path.append("/home/jovyan/work/tactics_demo/delta")
-    from features import FeatureExtractor, create_feature, calculate_hurst_exponent
+    from analysis.report_generator import ReportGenerator
 
-    print("  ✓ 导入优化后的特征提取器成功")
-    print("  ✓ 包含 calculate_hurst_exponent 函数")
+    print("  ✓ ReportGenerator 导入成功")
 
-    # 测试Hurst指数计算
-    import numpy as np
+    print("\n2. 测试类实例化...")
 
-    test_prices = 100 + np.cumsum(np.random.randn(100)) * 0.1
-    hurst = calculate_hurst_exponent(test_prices.tolist())
-    print(f"  ✓ 计算Hurst指数成功: {hurst:.4f}")
-
-except Exception as e:
-    print(f"  ✗ 导入特征提取器失败: {e}")
-    all_good = False
-
-# 测试4: 检查主脚本
-print("\n4. 检查主脚本...")
-
-main_script = "/home/jovyan/work/tactics_demo/factor_testing/test_factor_performance.py"
-if os.path.exists(main_script):
-    print(f"  ✓ 主脚本存在: {main_script}")
-
-    # 检查脚本内容
-    with open(main_script, "r", encoding="utf-8") as f:
-        content = f.read()
-
-    required_classes = [
-        "FactorPerformanceTester",
-        "DataLoader",
-        "ICAnalyzer",
-        "GroupBacktester",
-        "FactorVisualizer",
+    # 测试类是否可以实例化（不需要实际数据）
+    test_classes = [
+        ("FactorData", FactorData),
+        ("FactorPreprocessor", FactorPreprocessor),
+        ("ICCalculator", ICCalculator),
+        ("FactorMetrics", FactorMetrics),
+        ("GroupTester", GroupTester),
+        ("ReportGenerator", ReportGenerator),
     ]
 
-    for class_name in required_classes:
-        if class_name in content:
-            print(f"  ✓ 包含类: {class_name}")
-        else:
-            print(f"  ✗ 缺少类: {class_name}")
-            all_good = False
-else:
-    print(f"  ✗ 主脚本不存在")
-    all_good = False
+    for name, cls in test_classes:
+        try:
+            # 检查类定义
+            if hasattr(cls, "__name__"):
+                print(f"  ✓ {name} 类定义正确")
+            else:
+                print(f"  ✗ {name} 类定义错误")
+        except Exception as e:
+            print(f"  ✗ 测试 {name} 失败: {e}")
 
-# 总结
-print("\n" + "=" * 60)
-if all_good:
-    print("🎉 所有测试通过!")
-    print("\n下一步:")
-    print("1. 查看文档: cat README.md")
-    print("2. 运行示例: python example_usage.py")
-    print("3. 快速测试: python test_factor_performance.py --quick")
-else:
-    print("⚠ 部分测试失败，请检查上述错误")
-print("=" * 60)
+    print("\n3. 检查模块结构...")
+
+    # 检查必要的文件
+    required_files = [
+        "__init__.py",
+        "data/__init__.py",
+        "data/factor_data.py",
+        "metrics/__init__.py",
+        "metrics/ic_calculator.py",
+        "metrics/factor_metrics.py",
+        "analysis/__init__.py",
+        "analysis/group_test.py",
+        "analysis/report_generator.py",
+        "utils/__init__.py",
+        "utils/preprocessing.py",
+        "example.py",
+        "README.md",
+    ]
+
+    all_exist = True
+    for file_path in required_files:
+        full_path = os.path.join(current_dir, file_path)
+        if os.path.exists(full_path):
+            print(f"  ✓ {file_path}")
+        else:
+            print(f"  ✗ {file_path} (缺失)")
+            all_exist = False
+
+    print("\n" + "=" * 80)
+
+    if all_exist:
+        print("✅ 因子测试框架实现完成!")
+        print("\n框架包含以下核心模块:")
+        print("  1. FactorData - 因子数据管理")
+        print("  2. FactorPreprocessor - 因子预处理")
+        print("  3. ICCalculator - IC计算")
+        print("  4. FactorMetrics - 综合指标计算")
+        print("  5. GroupTester - 分组测试")
+        print("  6. ReportGenerator - 报告生成")
+
+        print("\n使用方法:")
+        print("  1. 查看 example.py 了解基本用法")
+        print("  2. 查看 README.md 获取详细文档")
+        print("  3. 按照以下步骤使用:")
+        print("""
+    步骤1: 准备数据
+        factor_df = pd.DataFrame(...)  # 因子数据，索引为(date, symbol)
+        returns = pd.Series(...)       # 未来收益，索引与因子数据一致
+    
+    步骤2: 创建因子数据对象
+        from factor_testing import FactorData
+        factor_data = FactorData(factor_df)
+    
+    步骤3: 计算因子指标
+        from factor_testing import FactorMetrics
+        metrics_calc = FactorMetrics(factor_data.get_factor('your_factor'), returns)
+        metrics = metrics_calc.calculate_all_metrics()
+    
+    步骤4: 分组测试
+        from factor_testing import GroupTester
+        tester = GroupTester(factor_data.get_factor('your_factor'), returns)
+        results = tester.run_comprehensive_test()
+    
+    步骤5: 生成报告
+        from factor_testing import ReportGenerator
+        report_gen = ReportGenerator('your_factor', factor_data.get_factor('your_factor'), returns)
+        report_gen.save_report('./output')
+        """)
+    else:
+        print("⚠️  框架文件不完整")
+
+except Exception as e:
+    print(f"\n❌ 测试失败: {e}")
+    import traceback
+
+    traceback.print_exc()

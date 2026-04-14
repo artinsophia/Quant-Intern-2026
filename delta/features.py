@@ -11,6 +11,11 @@ class FeatureExtractor:
         self.bid_book = self.last.get("bid_book", [])
         self.ask_book = self.last.get("ask_book", [])
         self.short_window = short_window
+        self.prices = [
+            snap["price_last"]
+            for snap in self.snap_slice
+            if snap.get("price_last") is not None
+        ]
 
         self.bid_volume = sum(
             vol for row in self.snap_slice for _, vol in row["buy_trade"]
@@ -53,17 +58,11 @@ class FeatureExtractor:
 
     @property
     def volatility(self) -> float:
-        prices = [
-            snap["price_last"]
-            for snap in self.snap_slice
-            if snap.get("price_last") is not None
-        ]
-        if len(prices) < 2:
-            return 0.0
-        mean_price = np.mean(prices)
+
+        mean_price = np.mean(self.prices)
         if mean_price == 0:
             return 0.0
-        return np.std(prices) / mean_price
+        return np.std(self.prices) / mean_price
 
     @property
     def wamp(self) -> float:
@@ -151,7 +150,7 @@ class FeatureExtractor:
             "alpha_06": self.alpha_06,
             "alpha_07": self.alpha_07,
             "hurst_exponent": calculate_hurst_exponent(
-                [snap.get("price_last", 0) for snap in self.snap_slice if snap.get("price_last") is not None]
+                self.prices
             ),
         }
     
