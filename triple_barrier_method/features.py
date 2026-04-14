@@ -1,0 +1,132 @@
+import numpy as np
+from typing import List, Dict, Any
+
+
+class FeatureExtractor:
+    def __init__(self, snap_slice: List[Dict[str, Any]], short_window: int = 60):
+        if not snap_slice:
+            raise ValueError("snap_slice cannot be empty")
+        self.snap_slice = list(snap_slice)
+        self.last = snap_slice[-1]
+        self.bid_book = self.last.get("bid_book", [])
+        self.ask_book = self.last.get("ask_book", [])
+        self.short_window = short_window
+
+        self.bid_volume = sum(
+            vol for row in self.snap_slice for _, vol in row["buy_trade"]
+        )
+        self.ask_volume = sum(
+            vol for row in self.snap_slice for _, vol in row["sell_trade"]
+        )
+        self.bid_volume_short = sum(
+            vol
+            for row in self.snap_slice[-self.short_window :]
+            for _, vol in row["buy_trade"]
+        )
+        self.ask_volume_short = sum(
+            vol
+            for row in self.snap_slice[-self.short_window :]
+            for _, vol in row["sell_trade"]
+        )
+
+    @staticmethod
+    def _safe_get_level(book: List[tuple], idx: int = 0) -> tuple:
+        if book and len(book) > idx:
+            return book[idx]
+        return (np.nan, 0)
+
+    @property
+    def price_last(self) -> float:
+        return self.last.get("price_last", np.nan)
+
+    @property
+    def best_bid(self) -> float:
+        return self._safe_get_level(self.bid_book)[0]
+
+    @property
+    def best_ask(self) -> float:
+        return self._safe_get_level(self.ask_book)[0]
+
+    @property
+    def spread(self) -> float:
+        bid, ask = self.best_bid, self.best_ask
+        if np.isnan(bid) or np.isnan(ask):
+            return np.nan
+        return ask - bid
+
+    @property
+    def volatility(self) -> float:
+        prices = [
+            snap["price_last"]
+            for snap in self.snap_slice
+            if snap.get("price_last") is not None
+        ]
+        if len(prices) < 2:
+            return 0.0
+        mean_price = np.mean(prices)
+        if mean_price == 0:
+            return 0.0
+        return np.std(prices) / mean_price
+
+    @property
+    def wamp(self) -> float:
+        bid_price, bid_vol = self._safe_get_level(self.bid_book)
+        ask_price, ask_vol = self._safe_get_level(self.ask_book)
+        numerator = bid_price * bid_vol + ask_price * ask_vol
+        denominator = bid_vol + ask_vol
+        if denominator == 0 or np.isnan(numerator):
+            return 0.0
+        return numerator / denominator
+
+    @property
+    def alpha_01(self) -> float:
+        return self.bid_volume_short / self.bid_volume if self.bid_volume > 0 else 0.0
+
+    @property
+    def alpha_02(self) -> float:
+        return self.ask_volume_short / self.ask_volume if self.ask_volume > 0 else 0.0
+
+    @property
+    def alpha_03(self) -> float:
+        return (
+            (self.bid_volume_short - self.ask_volume_short)
+            / (self.bid_volume + self.ask_volume)
+            if (self.bid_volume + self.ask_volume) > 0
+            else 0.0
+        )
+
+    @property
+    def alpha_04(self) -> float:
+        if len(self.snap_slice) < self.short_window:
+            return 0.0
+        num = (
+            self.snap_slice[-self.short_window]["num_trades"]
+            - self.snap_slice[-1]["num_trades"]
+        )
+        return num / self.short_window if num > 0 else 0.0
+
+    def extract_all(self) -> Dict[str, Any]:
+        num_trades_delta = 0
+        if len(self.snap_slice) >= 2:
+            num_trades_delta = self.last.get("num_trades", 0) - self.snap_slice[-2].get(
+                "num_trades", 0
+            )
+        return {
+            "price_last": self.price_last,
+            "num_trades": num_trades_delta,
+            "best_bid": self.best_bid,
+            "best_ask": self.best_ask,
+            "volatility": self.volatility,
+            "spread": self.spread,
+            "WAMP": self.wamp,
+            "alpha_01": self.alpha_01,
+            "alpha_02": self.alpha_02,
+            "alpha_03": self.alpha_03,
+            "alpha_04": self.alpha_04,
+        }
+
+
+def create_feature(
+    snap_slice: List[Dict[str, Any]], short_window: int = 60
+) -> Dict[str, Any]:
+    return FeatureExtractor(snap_slice, short_window).extract_all()
