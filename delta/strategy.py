@@ -1,7 +1,6 @@
 from collections import deque
 import itertools
 import os
-import pandas as pd
 from typing import Dict, Any
 
 from .features import create_feature, latest_zscore
@@ -26,7 +25,6 @@ class StrategyDemo:
         self.feature_buffer = deque(maxlen=self.x_window)
         self.delta_buffer = deque(maxlen=self.x_window)
 
-        self.trailing_stop_pct = param_dict.get("trailing_stop_pct", 0.001)
         self.max_favorable_price = 0
 
         self.max = 1.0
@@ -35,6 +33,7 @@ class StrategyDemo:
         self.price_count = 0
 
         self.prev_signal = 0
+        self.feature_names = self.model.feature_names_in_ 
 
     def on_snap(self, snap: Dict[str, Any]) -> None:
         price = snap.get("price_last")
@@ -62,7 +61,7 @@ class StrategyDemo:
         self.feature_buffer.append(snap)
         if len(self.feature_buffer) == self.x_window:
             feat_dict = create_feature(self.feature_buffer, self.short_window)
-            features_df = pd.DataFrame([feat_dict])
+            features_df = [[feat_dict[name] for name in self.feature_names]] 
             proba = self.model.predict_proba(features_df)
             # 获取类别1的概率，兼容DataFrame和numpy数组
             if hasattr(proba, "iloc"):
