@@ -73,7 +73,12 @@ class FeatureExtractor:
         if denominator == 0 or np.isnan(numerator):
             return 0.0
         return numerator / denominator
-
+    
+    @property
+    def volume(self) -> float:
+        return self.bid_volume + self.ask_volume
+    
+    # vol
     @property
     def alpha_01(self) -> float:
         return self.bid_volume_short / self.bid_volume if self.bid_volume > 0 else 0.0
@@ -86,11 +91,12 @@ class FeatureExtractor:
     def alpha_03(self) -> float:
         return (
             (self.bid_volume_short - self.ask_volume_short)
-            / (self.bid_volume + self.ask_volume)
-            if (self.bid_volume + self.ask_volume) > 0
+            / (self.bid_volume_short + self.ask_volume_short)
+            if (self.bid_volume_short + self.ask_volume_short) > 0
             else 0.0
         )
 
+    # trade
     @property
     def alpha_04(self) -> float:
         if len(self.snap_slice) < self.short_window:
@@ -107,6 +113,7 @@ class FeatureExtractor:
         sells = sum(len(row["sell_trade"]) for row in self.snap_slice[-self.short_window:])
         return (buys - sells) / (buys + sells + 1e-9)
     
+    # ratio
     @property
     def alpha_06(self) -> float:
         if len(self.snap_slice) < self.short_window:
@@ -123,23 +130,28 @@ class FeatureExtractor:
         
         return price_diff  / total_vol if total_vol > 0 else 0.0
     
+    # price
     @property
     def alpha_07(self) -> float:
-        total_vol = self.bid_volume_short + self.ask_volume_short
-        if total_vol == 0:
+        if len(self.prices) < 2:
             return 0.0
-        
-        oi = abs(self.bid_volume_short - self.ask_volume_short)
-        return oi / total_vol
-
+        price_delta = np.diff(self.prices)         
+        total_abs = np.sum(np.abs(price_delta))
+        if total_abs == 0:
+            return 0.0
+        return np.abs(np.sum(price_delta)) / total_abs
     
 
+
+
     def extract_all(self) -> Dict[str, Any]:
+        hurst , hurst_flag = calculate_hurst_exponent(self.prices)
         return {
             "num_trades": self.last.get("num_trades", 0) - self.snap_slice[-2].get("num_trades", 0),
             "volatility": self.volatility,
             "spread": self.spread,
             "WAMP": self.wamp,
+            "volume": self.volume,
             "alpha_01": self.alpha_01,
             "alpha_02": self.alpha_02,
             "alpha_03": self.alpha_03,
@@ -147,9 +159,8 @@ class FeatureExtractor:
             "alpha_05": self.alpha_05,
             "alpha_06": self.alpha_06,
             "alpha_07": self.alpha_07,
-            "hurst_exponent": calculate_hurst_exponent(
-                self.prices
-            ),
+            "hurst_exponent": hurst,
+            "hurst": hurst_flag
         }
     
 
@@ -228,4 +239,5 @@ def calculate_hurst_exponent(prices: List[float], max_lag: int = 20) -> float:
 
     # 线性回归
     hurst = np.polyfit(lags_log, tau_vals, 1)[0]
-    return max(0.0, min(1.0, hurst))
+    hurst = max(0.0, min(1.0, hurst))
+    return hurst , hurst > 0.5
