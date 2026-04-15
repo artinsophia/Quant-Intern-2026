@@ -32,6 +32,7 @@ def backtest_single_day(args):
 
     try:
         import base_tool
+        import joblib
 
         if official:
             from base_tool import backtest_quick
@@ -39,7 +40,13 @@ def backtest_single_day(args):
             from backtest_quick import backtest_quick
 
         # 创建策略实例
-        strategy = StrategyClass(model, param_dict)
+        # 如果model是字符串路径，则加载模型；否则直接使用模型对象
+        if isinstance(model, str):
+            loaded_model = joblib.load(model)
+        else:
+            loaded_model = model
+
+        strategy = StrategyClass(loaded_model, param_dict)
 
         # 加载数据
         snap_list = base_tool.snap_list_load(instrument_id, trade_ymd)
@@ -137,10 +144,18 @@ def backtest_multi_days_parallel(
         每个进程处理的天数块大小
     """
     import base_tool
+    import joblib
 
     start_date = datetime.strptime(start_ymd, "%Y%m%d")
     end_date = datetime.strptime(end_ymd, "%Y%m%d")
     strategy_name = param_dict.get("name", "strategy")
+
+    # 预先加载模型，避免每个进程重复加载
+    if isinstance(model, str):
+        print(f"预先加载模型: {model}")
+        loaded_model = joblib.load(model)
+    else:
+        loaded_model = model
 
     # 生成所有交易日
     trade_dates = []
@@ -158,7 +173,7 @@ def backtest_multi_days_parallel(
             instrument_id,
             trade_ymd,
             StrategyClass,
-            model,
+            loaded_model,  # 传递已加载的模型对象，而不是文件路径
             param_dict,
             strategy_name,
             official,
@@ -267,10 +282,18 @@ def backtest_multi_days_parallel_by_chunk(
         每个进程处理的连续天数
     """
     import base_tool
+    import joblib
 
     start_date = datetime.strptime(start_ymd, "%Y%m%d")
     end_date = datetime.strptime(end_ymd, "%Y%m%d")
     strategy_name = param_dict.get("name", "strategy")
+
+    # 预先加载模型，避免每个进程重复加载
+    if isinstance(model, str):
+        print(f"预先加载模型: {model}")
+        loaded_model = joblib.load(model)
+    else:
+        loaded_model = model
 
     # 生成所有交易日
     trade_dates = []
@@ -300,7 +323,7 @@ def backtest_multi_days_parallel_by_chunk(
                 instrument_id,
                 chunk,
                 StrategyClass,
-                model,
+                loaded_model,  # 传递已加载的模型对象，而不是文件路径
                 param_dict,
                 strategy_name,
                 official,

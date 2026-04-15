@@ -6,28 +6,36 @@ import joblib
 from .features import create_feature, latest_zscore
 import numpy as np
 
+
 class StrategyDemo:
     def __init__(self, model, param_dict=None) -> None:
         if param_dict is None:
             param_dict = {}
         self.__dict__.update(param_dict)
 
-        data_file = f"/home/jovyan/work/backtest_result/{self.instrument_id}_{self.trade_ymd}_{self.name}.pkl"
-        try:
-            if os.path.exists(data_file):
-                os.remove(data_file)
-        except OSError as e:
-            print(f"Warning: Could not delete file {data_file}: {e}")
+        # 移除文件删除操作，避免并行环境中的文件锁冲突
+        # data_file = f"/home/jovyan/work/backtest_result/{self.instrument_id}_{self.trade_ymd}_{self.name}.pkl"
+        # try:
+        #     if os.path.exists(data_file):
+        #         os.remove(data_file)
+        # except OSError as e:
+        #     print(f"Warning: Could not delete file {data_file}: {e}")
 
         self.position_last = 0
-        self.model = joblib.load(model)
+
+        # 检查model是否已经是加载的模型对象
+        if isinstance(model, str):
+            # 如果是文件路径，加载模型
+            self.model = joblib.load(model)
+        else:
+            # 如果已经是模型对象，直接使用
+            self.model = model
 
         self.feature_buffer = deque(maxlen=self.x_window)
         self.delta_buffer = deque(maxlen=self.x_window)
         self.price_buffer = deque(maxlen=self.vol_window)
 
         self.max_favorable_price = 0
-
 
         self.prev_signal = 0
 
@@ -38,7 +46,6 @@ class StrategyDemo:
         self.price_buffer.append(price)
         if len(self.price_buffer) < self.vol_window:
             return
-        
 
         delta = sum(vol for _, vol in snap["buy_trade"][: self.standard_num]) - sum(
             vol for _, vol in snap["sell_trade"][: self.standard_num]
@@ -69,7 +76,7 @@ class StrategyDemo:
                 prob = proba[0, 1]  # numpy数组
         else:
             return
-        
+
         rolling_std = np.std(self.price_buffer)
         self.trailing_stop = rolling_std * self.atr_multiplier
 
@@ -78,18 +85,26 @@ class StrategyDemo:
 
         if self.position_last == 1:
             self.max_favorable_price = max(self.max_favorable_price, price)
-            pullback = (self.max_favorable_price - price) 
+            pullback = self.max_favorable_price - price
             if pullback >= dynamic:
-                if prob is not None and prob > self.model.best_threshold + self.close_confidence and std_delta > self.open_threshold:
+                if (
+                    prob is not None
+                    and prob > self.model.best_threshold + self.close_confidence
+                    and std_delta > self.open_threshold
+                ):
                     current_signal = 1
                 else:
                     current_signal = 0
 
         elif self.position_last == -1:
             self.max_favorable_price = min(self.max_favorable_price, price)
-            pullback = (price - self.max_favorable_price) 
+            pullback = price - self.max_favorable_price
             if pullback >= dynamic:
-                if prob is not None and prob > self.model.best_threshold + self.close_confidence and std_delta < -self.open_threshold:
+                if (
+                    prob is not None
+                    and prob > self.model.best_threshold + self.close_confidence
+                    and std_delta < -self.open_threshold
+                ):
                     current_signal = -1
                 else:
                     current_signal = 0
@@ -106,7 +121,10 @@ class StrategyDemo:
                 self.prev_signal = 0
                 self.max_favorable_price = 0
             else:
-                if prob is not None and prob > self.model.best_threshold + self.open_confidence:
+                if (
+                    prob is not None
+                    and prob > self.model.best_threshold + self.open_confidence
+                ):
                     self.position_last = current_signal
                     self.prev_signal = current_signal
                     self.max_favorable_price = price

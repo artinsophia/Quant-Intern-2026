@@ -74,19 +74,30 @@ class StrategyDemo():
         pass
 ```
 
+## Base Backtesting
+
+```python
+import sys
+sys.path.append('/home/jovyan/work/tactics_demo/tools')
+
+```
+backtest_quick.py single_day_backtest.py
+
+
 ## Multi-Day Backtesting
 
 ```python
 import sys
 sys.path.append('/home/jovyan/work/tactics_demo/tools')
-from backtesting import backtest_multi_days, backtest_summary
+from multi_day_backtest import backtest_multi_days, backtest_summary
 
 result_df = backtest_multi_days(
     instrument_id='511520',
     start_ymd='20260202',
     end_ymd='20260320',
-    strategy=strategy_instance,
-    param_dict={'name': 'strategy_name'}
+    StrategyClass,
+    model=model_path
+    param_dict
 )
 summary = backtest_summary(result_df)
 ```
