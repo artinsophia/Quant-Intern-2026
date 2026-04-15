@@ -5,7 +5,6 @@ from sklearn.metrics import (
     auc,
     average_precision_score,
 )
-import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 

@@ -36,10 +36,10 @@ class EnsembleModel(BaseModel):
 
     def fit(
         self,
-        X_train: pd.DataFrame,
-        y_train: pd.Series,
-        X_valid: pd.DataFrame = None,
-        y_valid: pd.Series = None,
+        X_train,
+        y_train,
+        X_valid=None,
+        y_valid=None,
     ):
         """训练集成模型"""
         from .factory import ModelFactory
@@ -64,22 +64,6 @@ class EnsembleModel(BaseModel):
             else:
                 raise ValueError(f"模型配置格式错误: {model_config}")
 
-            # 如果有集成模型的早停参数，将其传递给子模型
-            if self.early_stopping:
-                # 将集成模型的早停参数添加到子模型参数中
-                if "early_stopping" not in model_params:
-                    # 创建早停参数副本，避免影响其他子模型
-                    early_stopping_params = {
-                        "patience": self.early_stopping.patience,
-                        "min_delta": self.early_stopping.min_delta,
-                        "mode": self.early_stopping.mode,
-                        "monitor": self.early_stopping.monitor,
-                        "baseline": self.early_stopping.baseline,
-                        "restore_best_weights": self.early_stopping.restore_best_weights,
-                        "verbose": self.early_stopping.verbose,
-                    }
-                    model_params["early_stopping"] = early_stopping_params
-
             # 创建模型
             model = ModelFactory.create_model(model_type, model_params)
 
@@ -94,7 +78,7 @@ class EnsembleModel(BaseModel):
 
         return self
 
-    def predict(self, X: pd.DataFrame) -> pd.Series:
+    def predict(self, X):
         """预测类别"""
         if not self.models:
             raise ValueError("模型未训练")
@@ -103,11 +87,18 @@ class EnsembleModel(BaseModel):
         weights = self.ensemble_params.get("weights")
 
         if voting_method == "hard":
-            return self._hard_vote(X, weights)
+            predictions = self._hard_vote(X, weights)
         else:  # soft voting
-            return self._soft_vote(X, weights)
+            predictions = self._soft_vote(X, weights)
 
-    def predict_proba(self, X: pd.DataFrame) -> pd.DataFrame:
+        # 根据输入类型返回相应格式
+        if isinstance(X, pd.DataFrame):
+            return pd.Series(predictions, index=X.index)
+        else:
+            # NumPy 数组输入，返回数组
+            return predictions
+
+    def predict_proba(self, X):
         """预测概率"""
         if not self.models:
             raise ValueError("模型未训练")
@@ -173,13 +164,17 @@ class EnsembleModel(BaseModel):
         avg_importance = importance_df.fillna(0).mean(axis=1)
         return avg_importance.sort_values(ascending=False)
 
-    def _hard_vote(self, X: pd.DataFrame, weights: List[float] = None) -> pd.Series:
+    def _hard_vote(self, X, weights=None):
         """硬投票"""
         # 收集所有模型的预测
         predictions = []
         for model in self.models:
             pred = model.predict(X)
-            predictions.append(pred.values)
+            # 如果模型返回 Series，提取 values
+            if isinstance(pred, pd.Series):
+                predictions.append(pred.values)
+            else:
+                predictions.append(pred)
 
         predictions = np.array(predictions)  # shape: (n_models, n_samples)
 
@@ -195,24 +190,30 @@ class EnsembleModel(BaseModel):
             # 简单多数投票
             final_predictions = np.round(np.mean(predictions, axis=0)).astype(int)
 
-        return pd.Series(final_predictions, index=X.index)
+        return final_predictions
 
-    def _soft_vote(self, X: pd.DataFrame, weights: List[float] = None) -> pd.Series:
+    def _soft_vote(self, X, weights=None):
         """软投票"""
         # 获取概率预测
         proba = self._soft_vote_proba(X, weights)
         # 选择概率较高的类别
-        return pd.Series((proba[1] > 0.5).astype(int), index=X.index)
+        if isinstance(proba, pd.DataFrame):
+            return (proba[1] > 0.5).astype(int).values
+        else:
+            # proba 是数组，shape: (n_samples, 2)
+            return (proba[:, 1] > 0.5).astype(int)
 
-    def _hard_vote_proba(
-        self, X: pd.DataFrame, weights: List[float] = None
-    ) -> pd.DataFrame:
+    def _hard_vote_proba(self, X, weights=None):
         """硬投票的概率（基于投票比例）"""
         # 收集所有模型的预测
         predictions = []
         for model in self.models:
             pred = model.predict(X)
-            predictions.append(pred.values)
+            # 如果模型返回 Series，提取 values
+            if isinstance(pred, pd.Series):
+                predictions.append(pred.values)
+            else:
+                predictions.append(pred)
 
         predictions = np.array(predictions)  # shape: (n_models, n_samples)
 
@@ -235,17 +236,24 @@ class EnsembleModel(BaseModel):
             # 归一化
             proba = proba / len(self.models)
 
-        return pd.DataFrame(proba, columns=[0, 1], index=X.index)
+        # 根据输入类型返回相应格式
+        if isinstance(X, pd.DataFrame):
+            return pd.DataFrame(proba, columns=[0, 1], index=X.index)
+        else:
+            # NumPy 数组输入，返回数组
+            return proba
 
-    def _soft_vote_proba(
-        self, X: pd.DataFrame, weights: List[float] = None
-    ) -> pd.DataFrame:
+    def _soft_vote_proba(self, X, weights=None):
         """软投票的概率（加权平均）"""
         # 收集所有模型的概率预测
         all_proba = []
         for model in self.models:
             proba = model.predict_proba(X)
-            all_proba.append(proba.values)
+            # 如果模型返回 DataFrame，提取 values
+            if isinstance(proba, pd.DataFrame):
+                all_proba.append(proba.values)
+            else:
+                all_proba.append(proba)
 
         all_proba = np.array(all_proba)  # shape: (n_models, n_samples, 2)
 
@@ -259,7 +267,12 @@ class EnsembleModel(BaseModel):
             # 简单平均
             avg_proba = np.mean(all_proba, axis=0)
 
-        return pd.DataFrame(avg_proba, columns=[0, 1], index=X.index)
+        # 根据输入类型返回相应格式
+        if isinstance(X, pd.DataFrame):
+            return pd.DataFrame(avg_proba, columns=[0, 1], index=X.index)
+        else:
+            # NumPy 数组输入，返回数组
+            return avg_proba
 
     def get_model_info(self) -> pd.DataFrame:
         """获取所有模型的信息"""
@@ -290,10 +303,12 @@ class EnsembleModel(BaseModel):
 
         early_stop_info = []
         for i, model in enumerate(self.models):
-            info = model.get_early_stopping_info()
-            if info:
-                info["model_index"] = i
-                info["model_type"] = self.model_types[i]
-                early_stop_info.append(info)
+            # 检查模型是否有 get_early_stopping_info 方法
+            if hasattr(model, "get_early_stopping_info"):
+                info = model.get_early_stopping_info()
+                if info:
+                    info["model_index"] = i
+                    info["model_type"] = self.model_types[i]
+                    early_stop_info.append(info)
 
         return pd.DataFrame(early_stop_info)

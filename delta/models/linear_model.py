@@ -47,29 +47,37 @@ class LinearModel(BaseModel):
 
     def fit(
         self,
-        X_train: pd.DataFrame,
-        y_train: pd.Series,
-        X_valid: pd.DataFrame = None,
-        y_valid: pd.Series = None,
+        X_train,
+        y_train,
+        X_valid=None,
+        y_valid=None,
     ):
         """训练线性模型"""
-        # 如果有早停机制，打印警告信息（线性模型通常不支持增量训练）
-        if self.early_stopping:
-            print("警告: 线性模型通常不支持增量训练和早停机制。")
-            print("早停参数将被忽略，使用标准训练方式。")
-
         # 线性模型通常不使用验证集进行early stopping
         self.pipeline.fit(X_train, y_train)
         return self
 
-    def predict(self, X: pd.DataFrame) -> pd.Series:
+    def predict(self, X):
         """预测类别"""
-        return pd.Series(self.pipeline.predict(X), index=X.index)
+        predictions = self.pipeline.predict(X)
 
-    def predict_proba(self, X: pd.DataFrame) -> pd.DataFrame:
+        # 根据输入类型返回相应格式
+        if isinstance(X, pd.DataFrame):
+            return pd.Series(predictions, index=X.index)
+        else:
+            # NumPy 数组输入，返回数组
+            return predictions
+
+    def predict_proba(self, X):
         """预测概率"""
         proba = self.pipeline.predict_proba(X)
-        return pd.DataFrame(proba, columns=[0, 1], index=X.index)
+
+        # 根据输入类型返回相应格式
+        if isinstance(X, pd.DataFrame):
+            return pd.DataFrame(proba, columns=[0, 1], index=X.index)
+        else:
+            # NumPy 数组输入，返回数组
+            return proba
 
     def save(self, filename: str):
         """保存模型"""

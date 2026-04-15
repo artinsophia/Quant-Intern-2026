@@ -33,7 +33,6 @@ class XGBoostModel(BaseModel):
             "random_state": 42,
             "n_jobs": -1,
             "verbosity": 1,
-
         }
 
         # 合并参数
@@ -51,7 +50,6 @@ class XGBoostModel(BaseModel):
             y_train
         )
 
-
         self.model = xgb.XGBClassifier(**self.model_params)
 
         eval_set = [(X_valid, y_valid)]
@@ -65,7 +63,7 @@ class XGBoostModel(BaseModel):
 
         return self
 
-    def predict(self, X: pd.DataFrame) -> pd.Series:
+    def predict(self, X):
         """使用优化后的阈值进行预测"""
         if self.model is None:
             raise ValueError("模型未训练")
@@ -75,14 +73,25 @@ class XGBoostModel(BaseModel):
         # 根据最优阈值进行二分类
         y_pred = (y_proba >= self.best_threshold).astype(int)
 
-        return pd.Series(y_pred, index=X.index)
+        # 根据输入类型返回相应格式
+        if isinstance(X, pd.DataFrame):
+            return pd.Series(y_pred, index=X.index)
+        else:
+            # NumPy 数组输入，返回数组
+            return y_pred
 
-    def predict_proba(self, X: pd.DataFrame) -> pd.DataFrame:
+    def predict_proba(self, X):
         """预测概率"""
         if self.model is None:
             raise ValueError("模型未训练")
         proba = self.model.predict_proba(X)
-        return pd.DataFrame(proba, columns=[0, 1], index=X.index)
+
+        # 根据输入类型返回相应格式
+        if isinstance(X, pd.DataFrame):
+            return pd.DataFrame(proba, columns=[0, 1], index=X.index)
+        else:
+            # NumPy 数组输入，返回数组
+            return proba
 
     def save(self, filename: str):
         """保存模型"""
@@ -138,6 +147,3 @@ class XGBoostModel(BaseModel):
         print(
             f"阈值优化完成: Best Threshold={self.best_threshold:.4f}, F{self.beta}={f_scores[best_idx]:.4f}"
         )
-
-
-

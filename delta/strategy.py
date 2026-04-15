@@ -38,8 +38,7 @@ class StrategyDemo:
         price = snap.get("price_last")
         if not price:
             return
-        self.max = max(self.max, price)
-        self.min = min(self.min, price)
+
 
         delta = sum(vol for _, vol in snap["buy_trade"][: self.standard_num]) - sum(
             vol for _, vol in snap["sell_trade"][: self.standard_num]
@@ -70,6 +69,9 @@ class StrategyDemo:
                 prob = proba[0, 1]  # numpy数组
         else:
             return
+        
+        self.max = max(self.max, price)
+        self.min = min(self.min, price)
         
         self.price_sum += price
         self.price_count += 1
