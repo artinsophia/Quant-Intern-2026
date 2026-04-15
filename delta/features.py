@@ -137,8 +137,6 @@ class FeatureExtractor:
     def extract_all(self) -> Dict[str, Any]:
         return {
             "num_trades": self.last.get("num_trades", 0) - self.snap_slice[-2].get("num_trades", 0),
-            "best_bid": self.best_bid,
-            "best_ask": self.best_ask,
             "volatility": self.volatility,
             "spread": self.spread,
             "WAMP": self.wamp,

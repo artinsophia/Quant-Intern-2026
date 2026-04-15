@@ -24,13 +24,10 @@ class StrategyDemo:
 
         self.feature_buffer = deque(maxlen=self.x_window)
         self.delta_buffer = deque(maxlen=self.x_window)
+        self.price_buffer = deque(maxlen=self.vol_window)
 
         self.max_favorable_price = 0
 
-        self.max = 1.0
-        self.min = 1000.0
-        self.price_sum = 0.0
-        self.price_count = 0
 
         self.prev_signal = 0
 
@@ -38,7 +35,10 @@ class StrategyDemo:
         price = snap.get("price_last")
         if not price:
             return
-
+        self.price_buffer.append(price)
+        if len(self.price_buffer) < self.vol_window:
+            return
+        
 
         delta = sum(vol for _, vol in snap["buy_trade"][: self.standard_num]) - sum(
             vol for _, vol in snap["sell_trade"][: self.standard_num]
@@ -70,21 +70,16 @@ class StrategyDemo:
         else:
             return
         
-        self.max = max(self.max, price)
-        self.min = min(self.min, price)
-        
-        self.price_sum += price
-        self.price_count += 1
-        self.avg_price_all = self.price_sum / self.price_count
-        self.trailing_stop_pct = 0.002 if (self.max - self.min) / self.avg_price_all > 0.005 else 0.001
+        rolling_std = np.std(self.price_buffer)
+        self.trailing_stop = rolling_std * self.atr_multiplier
 
-        dynamic_pct = self.trailing_stop_pct
+        dynamic = self.trailing_stop
         current_signal = self.prev_signal
 
         if self.position_last == 1:
             self.max_favorable_price = max(self.max_favorable_price, price)
-            pullback = (self.max_favorable_price - price) / self.max_favorable_price
-            if pullback >= dynamic_pct:
+            pullback = (self.max_favorable_price - price) 
+            if pullback >= dynamic:
                 if prob is not None and prob > self.model.best_threshold + self.close_confidence and std_delta > self.open_threshold:
                     current_signal = 1
                 else:
@@ -92,8 +87,8 @@ class StrategyDemo:
 
         elif self.position_last == -1:
             self.max_favorable_price = min(self.max_favorable_price, price)
-            pullback = (price - self.max_favorable_price) / self.max_favorable_price
-            if pullback >= dynamic_pct:
+            pullback = (price - self.max_favorable_price) 
+            if pullback >= dynamic:
                 if prob is not None and prob > self.model.best_threshold + self.close_confidence and std_delta < -self.open_threshold:
                     current_signal = -1
                 else:
