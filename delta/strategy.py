@@ -2,9 +2,9 @@ from collections import deque
 import itertools
 import os
 from typing import Dict, Any
-
+import joblib
 from .features import create_feature, latest_zscore
-
+import numpy as np
 
 class StrategyDemo:
     def __init__(self, model, param_dict=None) -> None:
@@ -20,7 +20,7 @@ class StrategyDemo:
             print(f"Warning: Could not delete file {data_file}: {e}")
 
         self.position_last = 0
-        self.model = model
+        self.model = joblib.load(model)
 
         self.feature_buffer = deque(maxlen=self.x_window)
         self.delta_buffer = deque(maxlen=self.x_window)
@@ -33,7 +33,6 @@ class StrategyDemo:
         self.price_count = 0
 
         self.prev_signal = 0
-        self.feature_names = self.model.feature_names_in_ 
 
     def on_snap(self, snap: Dict[str, Any]) -> None:
         price = snap.get("price_last")
@@ -61,8 +60,9 @@ class StrategyDemo:
         self.feature_buffer.append(snap)
         if len(self.feature_buffer) == self.x_window:
             feat_dict = create_feature(self.feature_buffer, self.short_window)
-            features_df = [[feat_dict[name] for name in self.feature_names]] 
-            proba = self.model.predict_proba(features_df)
+            values = list(feat_dict.values())
+            features = np.array([values])
+            proba = self.model.predict_proba(features)
             # 获取类别1的概率，兼容DataFrame和numpy数组
             if hasattr(proba, "iloc"):
                 prob = proba.iloc[0, 1]  # DataFrame
