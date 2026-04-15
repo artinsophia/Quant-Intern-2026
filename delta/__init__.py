@@ -11,7 +11,7 @@ from .train import (
     split_dates_by_range,
 )
 from .main import main
-from .models import BaseModel, XGBoostModel, LinearModel, ModelFactory
+from .models import BaseModel, XGBoostModel, ModelFactory
 
 __all__ = [
     "FeatureExtractor",
@@ -31,6 +31,5 @@ __all__ = [
     "main",
     "BaseModel",
     "XGBoostModel",
-    "LinearModel",
     "ModelFactory",
 ]

@@ -8,6 +8,7 @@ import base_tool
 
 from .features import latest_zscore, create_feature
 
+
 class TrainValidTest:
     def __init__(self, snap_list, param_dict, feature_func, y_func):
         if param_dict is not None:
@@ -24,9 +25,13 @@ class TrainValidTest:
         self.create_y = y_func
 
         # 使用列表推导式替代，保持纯 Python/NumPy 风格
-        bid_arr = np.array([sum(vol for _, vol in row["buy_trade"]) for row in self.snap_list])
-        ask_arr = np.array([sum(vol for _, vol in row["sell_trade"]) for row in self.snap_list])
-        
+        bid_arr = np.array(
+            [sum(vol for _, vol in row["buy_trade"]) for row in self.snap_list]
+        )
+        ask_arr = np.array(
+            [sum(vol for _, vol in row["sell_trade"]) for row in self.snap_list]
+        )
+
         # delta 保持为列表或数组均可
         self.delta = (bid_arr - ask_arr).tolist()
 
@@ -40,7 +45,7 @@ class TrainValidTest:
             flag, category = self.trigger(i)
             if not flag:
                 continue
-            
+
             x_dict = self.create_feature(
                 self.snap_list[i - self.x_window : i], self.short_window
             )
@@ -74,6 +79,7 @@ class TrainValidTest:
         else:
             return False, 0
 
+
 def samples_from_dates(dates, instrument_id, param_dict, create_feature, create_y):
     X_all_list = []
     y_all_list = []
@@ -84,14 +90,14 @@ def samples_from_dates(dates, instrument_id, param_dict, create_feature, create_
             if len(snap_list) < param_dict["x_window"] + param_dict["y_window"]:
                 print(f"{date}: 数据不足，跳过")
                 continue
-            
+
             tv = TrainValidTest(snap_list, param_dict, create_feature, create_y)
             X_day, y_day = tv.samples()
-            
+
             # 使用 list.extend 替代 pd.concat，效率更高
             X_all_list.extend(X_day)
             y_all_list.extend(y_day)
-            
+
             print(f"{date}: 产生 {len(X_day)} 个样本")
         except Exception as e:
             print(f"{date}: 加载失败 - {e}")
@@ -106,15 +112,17 @@ def samples_from_dates(dates, instrument_id, param_dict, create_feature, create_
     else:
         X_total = np.array([])
         y_total = np.array([])
+        feature_names = []
 
-    return X_total, y_total
+    return X_total, y_total, feature_names
+
 
 def create_y(snap_slice, volatility, k_up, k_down, category):
     t_up = None
     t_down = None
 
     start = snap_slice[0]["price_last"]
-    
+
     # 使用 math.isnan 替代 pd.isna
     if start is None or start == 0 or (isinstance(start, float) and math.isnan(start)):
         return 0

@@ -11,7 +11,7 @@ import numpy as np
 from .models.factory import ModelFactory
 
 
-def train_model(X_train, y_train, X_valid, y_valid, param_dict):
+def train_model(X_train, y_train, X_valid, y_valid, param_dict, feature_names=None):
     """训练模型
 
     Args:
@@ -20,6 +20,7 @@ def train_model(X_train, y_train, X_valid, y_valid, param_dict):
         X_valid: 验证特征
         y_valid: 验证标签
         param_dict: 参数字典，包含model_type等参数
+        feature_names: 特征名称列表，如果为None则使用默认名称
 
     Returns:
         训练好的模型实例
@@ -43,6 +44,10 @@ def train_model(X_train, y_train, X_valid, y_valid, param_dict):
     # 使用模型工厂创建模型
     model = ModelFactory.create_model(model_type, model_params)
 
+    # 设置特征名称（如果提供了）
+    if feature_names is not None and hasattr(model, "set_feature_names"):
+        model.set_feature_names(feature_names)
+
     # 训练模型
     model.fit(X_train, y_train, X_valid, y_valid)
 
@@ -52,6 +57,30 @@ def train_model(X_train, y_train, X_valid, y_valid, param_dict):
         if not importance.empty:
             print("\n特征重要性（前10个）:")
             print(importance.head(10))
+
+    # 打印详细的XGBoost特征重要性（gain, weight, cover）
+    if model_type == "xgboost" and hasattr(model, "get_xgboost_importance"):
+        print("\nXGBoost特征重要性详情:")
+        importance_df = model.get_xgboost_importance()
+        if not importance_df.empty:
+            print("\nGain重要性排名:")
+            print(
+                importance_df[["feature", "gain"]]
+                .sort_values("gain", ascending=False)
+                .head(20)
+            )
+            print("\nWeight重要性排名:")
+            print(
+                importance_df[["feature", "weight"]]
+                .sort_values("weight", ascending=False)
+                .head(20)
+            )
+            print("\nCover重要性排名:")
+            print(
+                importance_df[["feature", "cover"]]
+                .sort_values("cover", ascending=False)
+                .head(20)
+            )
 
     return model
 

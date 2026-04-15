@@ -142,8 +142,6 @@ class FeatureExtractor:
         return np.abs(np.sum(price_delta)) / total_abs
     
 
-
-
     def extract_all(self) -> Dict[str, Any]:
         hurst , hurst_flag = calculate_hurst_exponent(self.prices)
         return {

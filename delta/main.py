@@ -3,7 +3,7 @@ import sys
 sys.path.append("/home/jovyan/base_demo")
 
 from .features import create_feature
-from .data_processing import samples_from_dates, create_y
+from .data_processing import samples_from_dates, create_y, TrainValidTest
 from .train import (
     train_model,
     evaluate_model,
@@ -54,31 +54,35 @@ def main(model_type="xgboost", model_params=None):
     train_dates, valid_dates, test_dates = split_dates(trade_dates)
 
     print("\n生成训练集样本...")
-    X_train, y_train = samples_from_dates(
+    X_train, y_train, feature_names = samples_from_dates(
         train_dates, instrument_id, param_dict, create_feature, create_y
     )
     print(f"训练集样本: X={X_train.shape}, y={y_train.shape}")
     if len(y_train) > 0:
-        print(f"标签分布:\n{y_train.value_counts()}")
+        print(f"标签分布:\n{pd.Series(y_train).value_counts()}")
+
+    if feature_names:
+        print(f"\n特征数量: {len(feature_names)}")
+        print(f"特征名称: {feature_names}")
 
     print("\n生成验证集样本...")
-    X_valid, y_valid = samples_from_dates(
+    X_valid, y_valid, _ = samples_from_dates(
         valid_dates, instrument_id, param_dict, create_feature, create_y
     )
     print(f"验证集样本: X={X_valid.shape}, y={y_valid.shape}")
     if len(y_valid) > 0:
-        print(f"标签分布:\n{y_valid.value_counts()}")
+        print(f"标签分布:\n{pd.Series(y_valid).value_counts()}")
 
     print("\n生成测试集样本...")
-    X_test, y_test = samples_from_dates(
+    X_test, y_test, _ = samples_from_dates(
         test_dates, instrument_id, param_dict, create_feature, create_y
     )
     print(f"测试集样本: X={X_test.shape}, y={y_test.shape}")
     if len(y_test) > 0:
-        print(f"标签分布:\n{y_test.value_counts()}")
+        print(f"标签分布:\n{pd.Series(y_test).value_counts()}")
 
     print("\n训练模型...")
-    model = train_model(X_train, y_train, X_valid, y_valid, param_dict)
+    model = train_model(X_train, y_train, X_valid, y_valid, param_dict, feature_names)
 
     print("\n评估模型...")
     accuracy = evaluate_model(model, X_test, y_test)

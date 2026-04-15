@@ -1,3 +1,10 @@
+## [2026-4-15]
+### 1. ATR decides back drawdown
+### 2. Test demo
+
+## [2026-4-14]
+### 1. Reduce hyperparameter to minimun
+
 ## [2026-4-13]
 ### 1. Solve overfitting
 ### 2. Use prob threshold to improve precision

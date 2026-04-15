@@ -11,7 +11,7 @@ def save_backtest_results(
     summary,
     result_df=None,
     model=None,
-    base_dir="/home/jovyan/work/tactics_demo/delta/backtest_result",
+    base_dir="/home/jovyan/work/tactics_demo/backtest_result",
 ):
     """
     保存回测结果到结构化文件夹中

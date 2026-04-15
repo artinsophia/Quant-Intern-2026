@@ -2,10 +2,10 @@ import xgboost as xgb
 import joblib
 import pandas as pd
 import numpy as np
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from .base import BaseModel
 import math
-from sklearn.metrics import precision_recall_curve, fbeta_score
+from sklearn.metrics import precision_recall_curve
 
 
 class XGBoostModel(BaseModel):
@@ -31,7 +31,7 @@ class XGBoostModel(BaseModel):
             "colsample_bytree": 0.8,
             "objective": "binary:logistic",
             "random_state": 42,
-            "n_jobs": -1,
+            "n_jobs": 1,
             "verbosity": 1,
         }
 
@@ -42,6 +42,7 @@ class XGBoostModel(BaseModel):
         self.beta = self.model_params.pop("beta", 0.5)
 
         self.best_threshold = 0.5
+        self.feature_names = None  # 存储特征名称
 
     def fit(self, X_train, y_train, X_valid=None, y_valid=None):
         """训练模型 - 兼容性增强版"""
@@ -103,18 +104,72 @@ class XGBoostModel(BaseModel):
         """加载模型"""
         self.model = joblib.load(filename)
 
+    def set_feature_names(self, feature_names):
+        """设置特征名称"""
+        self.feature_names = feature_names
+
     def get_feature_importance(self) -> pd.Series:
-        """获取特征重要性"""
+        """获取特征重要性（默认使用gain）"""
         if self.model is None:
             return pd.Series()
 
         importance = self.model.feature_importances_
-        feature_names = self.model.get_booster().feature_names
 
-        if feature_names is None:
-            feature_names = [f"feature_{i}" for i in range(len(importance))]
+        # 使用存储的特征名称或从模型获取
+        if self.feature_names is not None and len(self.feature_names) == len(
+            importance
+        ):
+            feature_names = self.feature_names
+        else:
+            feature_names = self.model.get_booster().feature_names
+            if feature_names is None:
+                feature_names = [f"feature_{i}" for i in range(len(importance))]
 
         return pd.Series(importance, index=feature_names).sort_values(ascending=False)
+
+    def get_xgboost_importance(self) -> pd.DataFrame:
+        """获取XGBoost的三种特征重要性（gain, weight, cover）"""
+        if self.model is None:
+            return pd.DataFrame()
+
+        # 获取booster
+        booster = self.model.get_booster()
+
+        # 获取三种重要性
+        importance_gain = booster.get_score(importance_type="gain")
+        importance_weight = booster.get_score(importance_type="weight")
+        importance_cover = booster.get_score(importance_type="cover")
+
+        # 使用存储的特征名称或从模型获取
+        if self.feature_names is not None:
+            all_features = self.feature_names
+        else:
+            all_features = booster.feature_names
+            if all_features is None:
+                all_features = [
+                    f"feature_{i}" for i in range(self.model.n_features_in_)
+                ]
+
+        # 创建DataFrame
+        importance_data = []
+        for feature in all_features:
+            # 特征名称在XGBoost中可能以"f"开头
+            xgb_feature = (
+                f"f{all_features.index(feature)}"
+                if feature in all_features
+                else feature
+            )
+
+            importance_data.append(
+                {
+                    "feature": feature,
+                    "gain": importance_gain.get(xgb_feature, 0.0),
+                    "weight": importance_weight.get(xgb_feature, 0.0),
+                    "cover": importance_cover.get(xgb_feature, 0.0),
+                }
+            )
+
+        return pd.DataFrame(importance_data)
 
     def _calculate_scale_pos_weight(self, y_train: pd.Series) -> float:
         """
