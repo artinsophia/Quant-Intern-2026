@@ -41,6 +41,13 @@ def worker_process(batch_dates, instrument_id, StrategyClass, model_path_or_obj,
     """
     处理被分配的一批日期。
     """
+
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['OPENBLAS_NUM_THREADS'] = '1'
+    os.environ['MKL_NUM_TRADES'] = '1'
+    os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+    os.environ['NUMEXPR_NUM_THREADS'] = '1'
+
     # 子进程启动后第一件事：恢复系统路径
     _ensure_env()
     
@@ -109,7 +116,8 @@ def run_parallel_backtest(instrument_id, start_ymd, end_ymd, StrategyClass, mode
     # --- A. 环境与启动模式配置 ---
     # 尝试使用 fork 模式（Linux最佳实践，最完美继承环境内存和对象）
     try:
-        mp.set_start_method('fork', force=True)
+        mp.set_start_method('spawn', force=True)
+        print("spawn模式启动")
     except RuntimeError:
         pass  # 如果已设置则忽略
 
