@@ -3,7 +3,7 @@ import itertools
 import os
 from typing import Dict, Any
 import joblib
-from .features import create_feature, latest_zscore
+from .features import create_feature, latest_zscore , FeatureExtractor
 import numpy as np
 
 
@@ -13,14 +13,7 @@ class StrategyDemo:
             param_dict = {}
         self.__dict__.update(param_dict)
 
-        # 移除文件删除操作，避免并行环境中的文件锁冲突
-        # data_file = f"/home/jovyan/work/backtest_result/{self.instrument_id}_{self.trade_ymd}_{self.name}.pkl"
-        # try:
-        #     if os.path.exists(data_file):
-        #         os.remove(data_file)
-        # except OSError as e:
-        #     print(f"Warning: Could not delete file {data_file}: {e}")
-
+        FeatureExtractor.reset_state()
         self.position_last = 0
 
         # 检查model是否已经是加载的模型对象

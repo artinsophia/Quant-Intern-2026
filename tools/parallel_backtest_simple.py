@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.13
+#!/usr/bin/env /opt/conda/bin/python3.13
 """
 最简单的并行回测修复方案
 直接使用multiprocessing，确保所有进程使用相同的Python环境
@@ -11,33 +11,122 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import multiprocessing as mp
+from multiprocessing import TimeoutError
 from functools import partial
 
 # 确保路径正确
 sys.path.append("/home/jovyan/base_demo")
 sys.path.append("/home/jovyan/work/tactics_demo/tools")
 
+_model_obj = None
+_strategy_class = None
+_param_dict = None
 
-def worker_single_day(trade_ymd, instrument_id, StrategyClass, model, param_dict):
+
+def init_worker(model_path, StrategyClass, param_dict):
+    global _model_obj, _strategy_class, _param_dict
+    import joblib
+
+    _model_obj = joblib.load(model_path)  # 只加载一次
+    _strategy_class = StrategyClass
+    _param_dict = param_dict
+
+
+def worker_batch_days(date_batch, instrument_id, StrategyClass, model, param_dict):
     """
-    工作函数 - 必须在模块级别定义，以便pickle序列化
+    批次处理函数 - 处理一批日期，避免反复加载模型
     """
     import sys
     import os
 
-    # 确保路径
-    if "/home/jovyan/base_demo" not in sys.path:
-        sys.path.insert(0, "/home/jovyan/base_demo")
-    if "/home/jovyan/work/tactics_demo/tools" not in sys.path:
-        sys.path.insert(0, "/home/jovyan/work/tactics_demo/tools")
-    if "/home/jovyan/work/tactics_demo" not in sys.path:
-        sys.path.insert(0, "/home/jovyan/work/tactics_demo")
+    # 确保路径正确
+    sys.path.insert(0, "/home/jovyan/base_demo")
+    sys.path.insert(0, "/home/jovyan/work/tactics_demo/tools")
+    import base_tool
+    from backtest_quick import backtest_quick
+    import joblib
 
     try:
-        import base_tool
-        from backtest_quick import backtest_quick
-        import joblib
+        # 策略名称
+        strategy_name = param_dict.get("name", "strategy")
 
+        # 加载模型（如果是路径）
+        if isinstance(model, str):
+            model_obj = joblib.load(model)
+        else:
+            model_obj = model
+
+        batch_results = []
+
+        for trade_ymd in date_batch:
+            # 加载数据
+            snap_list = base_tool.snap_list_load(instrument_id, trade_ymd)
+            if not snap_list:
+                print(f"日期 {trade_ymd} 无数据，跳过")
+                continue
+
+            # 生成信号
+            strategy = StrategyClass(model_obj, param_dict)
+            position_dict = {}
+            for snap in snap_list:
+                strategy.on_snap(snap)
+                position_dict[snap["time_mark"]] = strategy.position_last
+
+            # 运行回测
+            profit_df = backtest_quick(
+                instrument_id, trade_ymd, strategy_name, position_dict, remake=True
+            )
+
+            if (
+                profit_df is not None
+                and len(profit_df) > 0
+                and "profits" in profit_df.columns
+            ):
+                # 统计当日交易次数
+                trade_count = 0
+                if "position" in profit_df.columns:
+                    trade_count = (
+                        (profit_df["position"].shift(1).fillna(0) == 0)
+                        & (profit_df["position"] != 0)
+                    ).sum()
+
+                day_data = {
+                    "trade_ymd": trade_ymd,
+                    "profits": round(profit_df["profits"].iloc[-1], 2),
+                    "trades": int(trade_count),
+                }
+                print(
+                    f"日期 {trade_ymd} 完成，盈亏: {day_data['profits']:.2f}, 成交: {day_data['trades']}次"
+                )
+                batch_results.append(day_data)
+            else:
+                print(f"日期 {trade_ymd} 回测结果为空")
+
+        return batch_results
+
+    except Exception as e:
+        print(f"批次处理出错: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return []
+
+
+def worker_single_day(trade_ymd, instrument_id, StrategyClass, model, param_dict):
+    """
+    单日处理函数（保持向后兼容）
+    """
+    import sys
+    import os
+
+    # 确保路径正确
+    sys.path.insert(0, "/home/jovyan/base_demo")
+    sys.path.insert(0, "/home/jovyan/work/tactics_demo/tools")
+    import base_tool
+    from backtest_quick import backtest_quick
+    import joblib
+
+    try:
         # 策略名称
         strategy_name = param_dict.get("name", "strategy")
 
@@ -105,9 +194,10 @@ def backtest_multi_days_parallel_simple(
     model,
     param_dict,
     n_processes=4,
+    use_batch=True,
 ):
     """
-    使用multiprocessing的简单并行回测
+    使用multiprocessing的简单并行回测，支持日期分批处理
 
     Parameters:
     -----------
@@ -124,7 +214,9 @@ def backtest_multi_days_parallel_simple(
     param_dict : dict
         策略参数
     n_processes : int
-        进程数
+        进程数（也是批次数量）
+    use_batch : bool
+        是否使用批次处理模式，True时每个进程处理一个批次
 
     Returns:
     --------
@@ -146,33 +238,72 @@ def backtest_multi_days_parallel_simple(
     )
     print(f"Python版本: {sys.version}")
 
-    # 准备参数
-    worker_args = [
-        (trade_ymd, instrument_id, StrategyClass, model, param_dict)
-        for trade_ymd in date_list
-    ]
+    if use_batch:
+        # 自动计算批次大小：有多少进程就分多少批，平均分配
+        batch_count = n_processes
+        batch_size = max(1, len(date_list) // batch_count)
+        if len(date_list) % batch_count != 0:
+            batch_size += 1  # 向上取整
+
+        print(f"使用批次处理模式，共 {batch_count} 批，每批约 {batch_size} 天")
+
+        # 将日期列表分成批次
+        date_batches = []
+        for i in range(0, len(date_list), batch_size):
+            batch = date_list[i : i + batch_size]
+            date_batches.append(batch)
+
+        print(f"实际分成 {len(date_batches)} 个批次")
+
+        # 准备批次参数
+        worker_args = [
+            (batch, instrument_id, StrategyClass, model, param_dict)
+            for batch in date_batches
+        ]
+
+        worker_func = worker_batch_days
+    else:
+        print("使用单日处理模式")
+        # 准备单日参数
+        worker_args = [
+            (trade_ymd, instrument_id, StrategyClass, model, param_dict)
+            for trade_ymd in date_list
+        ]
+
+        worker_func = worker_single_day
 
     # 使用进程池，设置maxtasksperchild防止内存泄漏
-    with mp.Pool(processes=n_processes, maxtasksperchild=10) as pool:
-        try:
-            # 使用starmap传递多个参数，设置超时
-            results = pool.starmap(worker_single_day, worker_args, chunksize=1)
-        except KeyboardInterrupt:
-            print("\\n用户中断，正在终止进程池...")
-            pool.terminate()
-            pool.join()
-            print("进程池已终止")
-            return None
-        except Exception as e:
-            print(f"并行执行出错: {e}")
-            pool.terminate()
-            pool.join()
-            return None
-        finally:
-            # 确保进程池关闭
-            pool.close()
-            pool.join()
-            print("进程池已关闭")
+    results = []
+    try:
+        with mp.Pool(processes=n_processes, maxtasksperchild=5) as pool:
+            # 使用starmap_async批量提交
+            async_result = pool.starmap_async(worker_func, worker_args)
+
+            # 等待结果，设置超时
+            try:
+                batch_results = async_result.get(timeout=600)  # 10分钟超时
+
+                # 展开结果
+                for result in batch_results:
+                    if isinstance(result, list):
+                        results.extend(result)
+                    elif result is not None:
+                        results.append(result)
+
+            except TimeoutError:
+                print("任务执行超时")
+                pool.terminate()
+                return None
+
+    except KeyboardInterrupt:
+        print("\n用户中断，正在终止进程池...")
+        return None
+    except Exception as e:
+        print(f"并行执行出错: {e}")
+        import traceback
+
+        traceback.print_exc()
+        return None
 
     # 过滤None结果
     all_day_summaries = [r for r in results if r is not None]

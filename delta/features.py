@@ -3,36 +3,39 @@ from typing import List, Dict, Any
 
 
 class FeatureExtractor:
+
+    hurst_cache = 0.5
+    hurst_flag_cache = False
+    tick_count = 0
+
+    @classmethod
+    def reset_state(cls):
+        cls.tick_count = 0
+        cls.hurst_cache = 0.5
+        cls.hurst_flag_cache = False
+
     def __init__(self, snap_slice: List[Dict[str, Any]], short_window: int = 60):
         if not snap_slice:
             raise ValueError("snap_slice cannot be empty")
-        self.snap_slice = list(snap_slice)
+        
         self.last = snap_slice[-1]
-        self.bid_book = self.last.get("bid_book", [])
-        self.ask_book = self.last.get("ask_book", [])
         self.short_window = short_window
-        self.prices = [
+
+        self.bid_book = self.last['bid_book']
+        self.ask_book = self.last['ask_book']
+
+        self.snap_slice = list(snap_slice)
+
+        self.prices = np.array([
             snap["price_last"]
             for snap in self.snap_slice
-            if snap.get("price_last") is not None
-        ]
+        ])
+        self.bid_volume = np.array([
+            sum(v for _,v in s["buy_trade"]) for s in snap_slice])
+        self.ask_volume = np.array([
+            sum(v for _,v in s["sell_trade"]) for s in snap_slice])
+        self.trade_count = np.array([s['num_trades'] for s in snap_slice])
 
-        self.bid_volume = sum(
-            vol for row in self.snap_slice for _, vol in row["buy_trade"]
-        )
-        self.ask_volume = sum(
-            vol for row in self.snap_slice for _, vol in row["sell_trade"]
-        )
-        self.bid_volume_short = sum(
-            vol
-            for row in self.snap_slice[-self.short_window :]
-            for _, vol in row["buy_trade"]
-        )
-        self.ask_volume_short = sum(
-            vol
-            for row in self.snap_slice[-self.short_window :]
-            for _, vol in row["sell_trade"]
-        )
         
 
     @staticmethod
@@ -76,34 +79,16 @@ class FeatureExtractor:
     
     @property
     def volume(self) -> float:
-        return self.bid_volume + self.ask_volume
+        return np.sum(self.bid_volume) + np.sum(self.ask_volume)
     
-    # vol
-    @property
-    def alpha_01(self) -> float:
-        return self.bid_volume_short / self.bid_volume if self.bid_volume > 0 else 0.0
-
-    @property
-    def alpha_02(self) -> float:
-        return self.ask_volume_short / self.ask_volume if self.ask_volume > 0 else 0.0
-
-    @property
-    def alpha_03(self) -> float:
-        return (
-            (self.bid_volume_short - self.ask_volume_short)
-            / (self.bid_volume_short + self.ask_volume_short)
-            if (self.bid_volume_short + self.ask_volume_short) > 0
-            else 0.0
-        )
-
     # trade
     @property
     def alpha_04(self) -> float:
         if len(self.snap_slice) < self.short_window:
             return 0.0
         num = (
-            self.snap_slice[-1]["num_trades"]
-            - self.snap_slice[-self.short_window]["num_trades"]
+            self.trade_count[-1]
+            - self.trade_count[-self.short_window]
         )
         return num / self.short_window if num > 0 else 0.0
     
@@ -113,50 +98,53 @@ class FeatureExtractor:
         sells = sum(len(row["sell_trade"]) for row in self.snap_slice[-self.short_window:])
         return (buys - sells) / (buys + sells + 1e-9)
     
-    # ratio
-    @property
-    def alpha_06(self) -> float:
-        if len(self.snap_slice) < self.short_window:
-            return 0.0
-
-        start_price = self.snap_slice[-self.short_window].get("price_last")
-        end_price = self.snap_slice[-1].get("price_last")
-        
-        if start_price is None or end_price is None or start_price == 0:
-            return 0.0
-            
-        price_diff = abs(end_price - start_price) / start_price 
-        total_vol = self.bid_volume_short + self.ask_volume_short
-        
-        return price_diff  / total_vol if total_vol > 0 else 0.0
     
-    # price
-    @property
-    def alpha_07(self) -> float:
-        if len(self.prices) < 2:
-            return 0.0
-        price_delta = np.diff(self.prices)         
-        total_abs = np.sum(np.abs(price_delta))
-        if total_abs == 0:
-            return 0.0
-        return np.abs(np.sum(price_delta)) / total_abs
+
     
 
     def extract_all(self) -> Dict[str, Any]:
-        hurst , hurst_flag = calculate_hurst_exponent(self.prices)
+        FeatureExtractor.tick_count += 1
+
+        if FeatureExtractor.tick_count % 20 == 0:
+            hurst , hurst_flag = calculate_hurst_exponent(self.prices)
+            FeatureExtractor.hurst_cache = hurst
+            FeatureExtractor.hurst_flag_cache = hurst_flag
+        else:
+            hurst = FeatureExtractor.hurst_cache
+            hurst_flag = FeatureExtractor.hurst_flag_cache
+        
+        total_buy = np.sum(self.bid_volume)
+        total_sell = np.sum(self.ask_volume)
+
+        short_buy = np.sum(self.bid_volume[-self.short_window:])
+        short_sell = np.sum(self.ask_volume[-self.short_window:])
+
+        alpha_01 = short_buy / (total_buy + 1e-9)
+        alpha_02 = short_sell / (total_sell + 1e-9)
+        alpha_03 = (short_buy - short_sell) / (short_buy + short_sell + 1e-9)
+
+        start_price = self.snap_slice[-self.short_window].get("price_last")
+        end_price = self.snap_slice[-1].get("price_last")
+        price_diff = abs(end_price - start_price) / (start_price + 1e-9) 
+        alpha_06 = price_diff / (short_buy + short_sell + 1e-9)
+
+        prices_diffs = np.diff(self.prices)
+        total_abs_diff = np.sum(np.abs(prices_diffs))
+        alpha_07 = np.abs(np.sum(prices_diffs)) / (total_abs_diff + 1e-9)
+
         return {
             "num_trades": self.last.get("num_trades", 0) - self.snap_slice[-2].get("num_trades", 0),
             "volatility": self.volatility,
             "spread": self.spread,
             "WAMP": self.wamp,
             "volume": self.volume,
-            "alpha_01": self.alpha_01,
-            "alpha_02": self.alpha_02,
-            "alpha_03": self.alpha_03,
+            "alpha_01": alpha_01,
+            "alpha_02": alpha_02,
+            "alpha_03": alpha_03,
             "alpha_04": self.alpha_04,
             "alpha_05": self.alpha_05,
-            "alpha_06": self.alpha_06,
-            "alpha_07": self.alpha_07,
+            "alpha_06": alpha_06,
+            "alpha_07": alpha_07,
             "hurst_exponent": hurst,
             "hurst": hurst_flag
         }
@@ -178,7 +166,7 @@ def latest_zscore(samples):
         return 0.0
     return (samples[-1] - mean) / std
 
-def calculate_hurst_exponent(prices: List[float], max_lag: int = 20) -> float:
+def calculate_hurst_exponent(prices: List[float], max_lag: int = 20) -> tuple[float, bool]:
     if len(prices) < 10:
         return 0.5
 
@@ -199,33 +187,27 @@ def calculate_hurst_exponent(prices: List[float], max_lag: int = 20) -> float:
         blocks = returns[:n_blocks * lag].reshape(n_blocks, lag)
 
         # 计算每行的均值和标准差
-        mean_block = np.mean(blocks, axis=1)
         std_block = np.std(blocks, axis=1, ddof=0)  # 总体标准差，与原代码一致
 
         # 找出标准差大于0的行
-        valid = std_block > 0
-        if not np.any(valid):
+        valid_idx = np.where(std_block > 0)[0]
+        if not np.any(valid_idx):
             tau.append(0.0)
             continue
 
         # 只保留有效行
-        blocks_valid = blocks[valid]
-        mean_valid = mean_block[valid]
-        std_valid = std_block[valid]
+        blocks_valid = blocks[valid_idx]
+        std_valid = std_block[valid_idx]
+
+        means = np.mean(blocks_valid, axis=1)[:,None]
+        centered_blocks = blocks_valid - means
 
         # 计算每行的累积和（按行）
-        cumsum_block = np.cumsum(blocks_valid, axis=1)
+        cumsum_block = np.cumsum(centered_blocks, axis=1)
 
-        # 计算偏差累积和：cumsum(block - mean) = cumsum(block) - k * mean
-        # k 为列索引+1
-        k = np.arange(1, lag + 1)
-        cum_dev = cumsum_block - mean_valid[:, np.newaxis] * k
+        R = np.max(cumsum_block,axis = 1) - np.min(cumsum_block,axis = 1)
 
-        # 每行的 RS 值
-        rs = (np.max(cum_dev, axis=1) - np.min(cum_dev, axis=1)) / std_valid
-
-        # 取对数平均值
-        tau.append(np.log(np.mean(rs)))
+        tau.append(np.log(np.mean(R / std_valid)))
 
     # 过滤掉无效的 tau 值（0 表示该 lag 无有效子区间）
     valid_tau = [(l, t) for l, t in zip(lags, tau) if t != 0.0]
