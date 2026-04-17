@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import gc
 
 # ==========================================
 # 1. 环境预设与加固 (非常关键)
@@ -44,7 +45,7 @@ def worker_process(batch_dates, instrument_id, StrategyClass, model_path_or_obj,
 
     os.environ['OMP_NUM_THREADS'] = '1'
     os.environ['OPENBLAS_NUM_THREADS'] = '1'
-    os.environ['MKL_NUM_TRADES'] = '1'
+    os.environ['MKL_NUM_THREADS'] = '1'
     os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
     os.environ['NUMEXPR_NUM_THREADS'] = '1'
 
@@ -99,6 +100,13 @@ def worker_process(batch_dates, instrument_id, StrategyClass, model_path_or_obj,
                 }
                 print(f"[{mp.current_process().name}] 日期 {trade_ymd} 完成 | 盈亏: {day_data['profits']:.2f}")
                 results.append(day_data)
+
+            del snap_list
+            del strategy
+            del position_dict
+            del profit_df
+            
+            gc.collect()
                 
         except Exception as e:
             print(f"[{mp.current_process().name}] 日期 {trade_ymd} 执行异常: {e}")
@@ -114,7 +122,16 @@ def run_parallel_backtest(instrument_id, start_ymd, end_ymd, StrategyClass, mode
     主控函数：按核心数均分日期，并行执行回测并汇总结果。
     """
     # --- A. 环境与启动模式配置 ---
-    # 尝试使用 fork 模式（Linux最佳实践，最完美继承环境内存和对象）
+    # 在创建进程池之前设置环境变量
+    os.environ['OMP_NUM_THREADS'] = '1'
+    os.environ['OPENBLAS_NUM_THREADS'] = '1'
+    os.environ['MKL_NUM_THREADS'] = '1'
+    os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
+    os.environ['NUMEXPR_NUM_THREADS'] = '1'
+
+    print(f"-> Python解释器: {sys.executable}")
+    print(f"-> Python版本: {sys.version}")
+
     try:
         mp.set_start_method('spawn', force=True)
         print("spawn模式启动")
@@ -148,9 +165,15 @@ def run_parallel_backtest(instrument_id, start_ymd, end_ymd, StrategyClass, mode
     # --- C. 启动进程池 ---
     args_list = [(batch, instrument_id, StrategyClass, model, param_dict) for batch in date_batches]
     
-    with mp.Pool(processes=actual_cores) as pool:
-        # starmap 会阻塞并自动收集所有子进程的结果，不需要写复杂的异步超时逻辑
-        batch_results = pool.starmap(worker_process, args_list)
+    pool = mp.Pool(processes=actual_cores)
+    
+
+    async_result = pool.starmap_async(worker_process, args_list)
+    batch_results = async_result.get(timeout=40)  # 超时40s
+    print("回测结束，强制终止所有子进程")
+    pool.terminate()
+    pool.join()
+
 
     # --- D. 整理与汇总 ---
     # 展平二维数组：将各个进程返回的嵌套列表合并成一个扁平列表

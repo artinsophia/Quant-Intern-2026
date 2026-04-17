@@ -13,7 +13,6 @@ class StrategyDemo:
             param_dict = {}
         self.__dict__.update(param_dict)
 
-        FeatureExtractor.reset_state()
         self.position_last = 0
 
         # 检查model是否已经是加载的模型对象
@@ -31,6 +30,14 @@ class StrategyDemo:
         self.max_favorable_price = 0
 
         self.prev_signal = 0
+
+    def close(self):
+        self.delta_buffer.clear()
+        self.feature_buffer.clear()
+        self.price_buffer.clear()
+
+    def __del__(self):
+        self.close()
 
     def on_snap(self, snap: Dict[str, Any]) -> None:
         price = snap.get("price_last")

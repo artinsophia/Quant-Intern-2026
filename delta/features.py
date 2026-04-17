@@ -3,21 +3,11 @@ from typing import List, Dict, Any
 
 
 class FeatureExtractor:
-
-    hurst_cache = 0.5
-    hurst_flag_cache = False
-    tick_count = 0
-
-    @classmethod
-    def reset_state(cls):
-        cls.tick_count = 0
-        cls.hurst_cache = 0.5
-        cls.hurst_flag_cache = False
-
     def __init__(self, snap_slice: List[Dict[str, Any]], short_window: int = 60):
         if not snap_slice:
             raise ValueError("snap_slice cannot be empty")
-        
+
+
         self.last = snap_slice[-1]
         self.short_window = short_window
 
@@ -103,15 +93,7 @@ class FeatureExtractor:
     
 
     def extract_all(self) -> Dict[str, Any]:
-        FeatureExtractor.tick_count += 1
-
-        if FeatureExtractor.tick_count % 20 == 0:
-            hurst , hurst_flag = calculate_hurst_exponent(self.prices)
-            FeatureExtractor.hurst_cache = hurst
-            FeatureExtractor.hurst_flag_cache = hurst_flag
-        else:
-            hurst = FeatureExtractor.hurst_cache
-            hurst_flag = FeatureExtractor.hurst_flag_cache
+        # hurst , hurst_flag = calculate_hurst_exponent(self.prices)
         
         total_buy = np.sum(self.bid_volume)
         total_sell = np.sum(self.ask_volume)
@@ -145,8 +127,8 @@ class FeatureExtractor:
             "alpha_05": self.alpha_05,
             "alpha_06": alpha_06,
             "alpha_07": alpha_07,
-            "hurst_exponent": hurst,
-            "hurst": hurst_flag
+            # "hurst_exponent": hurst,
+            # "hurst": hurst_flag
         }
     
 
