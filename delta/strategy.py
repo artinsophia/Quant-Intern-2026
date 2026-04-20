@@ -92,7 +92,7 @@ class StrategyDemo:
             pullback = self.max_favorable_price - price
             if pullback >= dynamic:
                 current_signal = 0
-            if std_delta < - self.open_threshold and prob > self.model.best_threshold + self.close_confidence:
+            if std_delta < - self.close_threshold and prob > self.model.best_threshold + self.close_confidence:
                 current_signal = 0
 
         elif self.position_last == -1:
@@ -100,7 +100,7 @@ class StrategyDemo:
             pullback = price - self.max_favorable_price
             if pullback >= dynamic:
                 current_signal = 0
-            if std_delta > self.open_threshold and prob > self.model.best_threshold + self.close_confidence:
+            if std_delta > self.close_threshold and prob > self.model.best_threshold + self.close_confidence:
                 current_signal = 0
         
         # 开仓信号

@@ -12,7 +12,12 @@ tactics_demo/
 │   ├── __init__.py
 │   ├── backtesting.py           # Multi-day backtesting framework + summary stats
 │   ├── plot_price.py            # Price/volume visualization utilities
-│   └── Kline.py                 # Candlestick (OHLC) chart plotting
+│   ├── Kline.py                 # Candlestick (OHLC) chart plotting
+│   ├── parallel_backtest_simple.py  # 并行回测框架
+│   ├── multi_day_backtest.py    # 多日回测函数
+│   ├── delay_stability_test.py  # 延迟稳定性批量检验
+│   ├── test_delay_stability.py  # 延迟测试验证脚本
+│   └── example_delay_test.py    # 使用示例
 ├── simple_MA/                   # Moving Average crossover strategies
 │   ├── test.ipynb               # Pure SMA crossover (no ML)
 │   ├── demo1.ipynb              # EMA + XGBoost
