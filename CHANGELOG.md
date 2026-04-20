@@ -1,5 +1,6 @@
 ## [2026-4-17]
 ### 1. Optimize time of creat_x() : a day from 15s past to 7s
+### 2. Implement my first mature strategy
 
 ## [2026-4-15]
 ### 1. ATR decides back drawdown
