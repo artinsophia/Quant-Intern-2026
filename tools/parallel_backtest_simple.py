@@ -64,6 +64,9 @@ def worker_process(
         import base_tool
         from backtest_quick import backtest_quick
         import joblib
+
+        # 导入延迟开仓函数
+        from single_day_backtest import delay_open_position
     except ImportError as e:
         print(f"[进程 {mp.current_process().name}] 模块导入失败: {e}，请检查路径。")
         return []
@@ -93,7 +96,12 @@ def worker_process(
                 strategy.on_snap(snap)
                 position_dict[snap["time_mark"]] = strategy.position_last
 
-            # 3. 执行单日回测
+            # 3. 应用开仓延迟
+            delay_snaps = param_dict.get("delay_snaps", 0)
+            if delay_snaps > 0:
+                position_dict = delay_open_position(position_dict, delay_snaps)
+
+            # 4. 执行单日回测
             profit_df = backtest_quick(
                 instrument_id, trade_ymd, strategy_name, position_dict, remake=True
             )
@@ -319,8 +327,4 @@ def run_parallel_backtest(
     plt.tight_layout()
     plt.show()
 
-
     return df
-
-
-

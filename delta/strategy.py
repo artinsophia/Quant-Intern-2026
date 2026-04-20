@@ -83,32 +83,27 @@ class StrategyDemo:
         dynamic = self.trailing_stop
         current_signal = self.prev_signal
 
+
+
+
+        # 回撤平仓或反向信号平仓
         if self.position_last == 1:
             self.max_favorable_price = max(self.max_favorable_price, price)
             pullback = self.max_favorable_price - price
             if pullback >= dynamic:
-                if (
-                    prob is not None
-                    and prob > self.model.best_threshold + self.close_confidence
-                    and std_delta > self.open_threshold
-                ):
-                    current_signal = 1
-                else:
-                    current_signal = 0
+                current_signal = 0
+            if std_delta < - self.open_threshold and prob > self.model.best_threshold + self.close_confidence:
+                current_signal = 0
 
         elif self.position_last == -1:
             self.max_favorable_price = min(self.max_favorable_price, price)
             pullback = price - self.max_favorable_price
             if pullback >= dynamic:
-                if (
-                    prob is not None
-                    and prob > self.model.best_threshold + self.close_confidence
-                    and std_delta < -self.open_threshold
-                ):
-                    current_signal = -1
-                else:
-                    current_signal = 0
-
+                current_signal = 0
+            if std_delta > self.open_threshold and prob > self.model.best_threshold + self.close_confidence:
+                current_signal = 0
+        
+        # 开仓信号
         if self.position_last == 0:
             if std_delta > self.open_threshold:
                 current_signal = 1

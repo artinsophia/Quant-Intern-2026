@@ -15,6 +15,7 @@ def single_day_backtest(
     title_suffix="",
     save_path=None,
     official=False,
+    delay_snaps=0,
 ):
     if param_dict is None:
         param_dict = {}
@@ -47,7 +48,11 @@ def single_day_backtest(
         time_history.append(t)
         position_history.append(pos)
 
-    # 3. 运行【新版】回测获取盈亏数据
+    # 3. 应用开仓延迟
+    if delay_snaps > 0:
+        position_dict = delay_open_position(position_dict, delay_snaps)
+
+    # 4. 运行【新版】回测获取盈亏数据
     # 注意：这里的 profit_df["profits"] 已经是累计盈亏了
     profit_df = backtest_quick(
         instrument_id, trade_ymd, strategy_name, position_dict, remake=1
@@ -231,6 +236,45 @@ def get_change_marker(change_type):
         return "o"
 
 
+def delay_open_position(position_dict, delay_snaps=0):
+    if delay_snaps <= 0:
+        return position_dict.copy()
+
+    sorted_times = sorted(position_dict.keys())
+    if not sorted_times:
+        return position_dict.copy()
+
+    positions = [position_dict[t] for t in sorted_times]
+    n = len(positions)
+    new_positions = [0] * n
+
+    # 提取连续持仓段 [start, end) 其中 positions[start:end] 相同且非0
+    i = 0
+    while i < n:
+        if positions[i] == 0:
+            i += 1
+            continue
+        pos = positions[i]
+        j = i
+        while j < n and positions[j] == pos:
+            j += 1
+        # 段 [i, j-1] 持仓为 pos
+        start = i
+        end = j - 1  # 持仓结束索引（含）
+        # 平移
+        new_start = min(start + delay_snaps, n - 1)
+        new_end = end + delay_snaps  # 平移后的结束索引（含）
+        if new_start <= new_end and new_start < n:
+            # 新段有效，但需截断到数组末尾
+            new_end = min(new_end, n - 1)
+            for k in range(new_start, new_end + 1):
+                new_positions[k] = pos
+        # 如果 new_start > new_end 或超出范围，则丢弃该段（取消交易）
+        i = j
+
+    # 将新序列写回字典
+    return {sorted_times[idx]: new_positions[idx] for idx in range(n)}
+
 def analyze_position_segments(position_history, price_history):
     """
     分析持仓段并计算每段的盈亏（绘图辅助函数）
@@ -314,6 +358,7 @@ def plot_delta_history(
     title_suffix="",
     save_path=None,
     official=False,
+    delay_snaps=0,
 ):
     """绘制delta随时间变化的图，并标出变仓点"""
     if param_dict is None:
@@ -380,6 +425,10 @@ def plot_delta_history(
         price_history.append(p)
         time_history.append(t)
         position_history.append(pos)
+
+    # 应用开仓延迟
+    if delay_snaps > 0:
+        position_dict = delay_open_position(position_dict, delay_snaps)
 
     profit_df = backtest_quick(
         instrument_id, trade_ymd, strategy_name, position_dict, remake=1

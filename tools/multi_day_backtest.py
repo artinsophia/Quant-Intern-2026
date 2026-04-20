@@ -11,7 +11,14 @@ sys.path.append("/home/jovyan/work/tactics_demo/tools")
 
 
 def backtest_multi_days(
-    instrument_id, start_ymd, end_ymd, StrategyClass, model, param_dict, official=False
+    instrument_id,
+    start_ymd,
+    end_ymd,
+    StrategyClass,
+    model,
+    param_dict,
+    official=False,
+    delay_snaps=0,
 ):
     """
     多天回测函数 - 适配简易向量化版 backtest_quick
@@ -48,7 +55,13 @@ def backtest_multi_days(
                 strategy.on_snap(snap)
                 position_dict[snap["time_mark"]] = strategy.position_last
 
-            # 3. 运行回测 (remake=True 确保不读旧逻辑缓存)
+            # 3. 应用开仓延迟
+            if delay_snaps > 0:
+                from single_day_backtest import delay_open_position
+
+                position_dict = delay_open_position(position_dict, delay_snaps)
+
+            # 4. 运行回测 (remake=True 确保不读旧逻辑缓存)
             profit_df = backtest_quick(
                 instrument_id, trade_ymd, strategy_name, position_dict, remake=True
             )
