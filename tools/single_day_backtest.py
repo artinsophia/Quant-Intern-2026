@@ -175,10 +175,16 @@ def single_day_backtest(
             trade_count = profit_df["trade"].iloc[-1]
         avg_pnl_per_trade = total_pnl / max(trade_count, 1) if trade_count > 0 else 0
 
+        # 获取平均持仓时间
+        avg_holding_ticks = 0
+        if "holding" in profit_df.columns:
+            avg_holding_ticks = profit_df["holding"].iloc[-1]
+
         stats_text = (
             f"Total P&L: {total_pnl:.2f} | "
             f"Avg P&L/Trade: {avg_pnl_per_trade:.2f} | "
-            f"Trade Count: {trade_count}"
+            f"Trade Count: {trade_count} | "
+            f"Avg Holding: {avg_holding_ticks:.1f} ticks"
         )
         fig.text(
             0.02,
@@ -484,10 +490,16 @@ def plot_delta_history(
             trade_count = profit_df["trade"].iloc[-1]
         avg_pnl_per_trade = total_pnl / max(trade_count, 1) if trade_count > 0 else 0
 
+        # 获取平均持仓时间
+        avg_holding_ticks = 0
+        if "holding" in profit_df.columns:
+            avg_holding_ticks = profit_df["holding"].iloc[-1]
+
         stats_text = (
             f"Total P&L: {total_pnl:.2f} | "
             f"Avg P&L/Trade: {avg_pnl_per_trade:.2f} | "
-            f"Trade Count: {trade_count}"
+            f"Trade Count: {trade_count} | "
+            f"Avg Holding: {avg_holding_ticks:.1f} ticks"
         )
         fig.text(
             0.02,

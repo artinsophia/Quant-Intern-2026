@@ -111,13 +111,19 @@ def worker_process(
                         & (profit_df["position"] != 0)
                     ).sum()
 
+                # 获取平均持仓时间
+                avg_holding_ticks = 0
+                if "holding" in profit_df.columns:
+                    avg_holding_ticks = profit_df["holding"].iloc[-1]
+
                 day_data = {
                     "trade_ymd": trade_ymd,
                     "profits": round(profit_df["profits"].iloc[-1], 2),
                     "trades": int(trades),
+                    "avg_holding_ticks": round(avg_holding_ticks, 2),
                 }
                 print(
-                    f"[{mp.current_process().name}] 日期 {trade_ymd} 完成 | 盈亏: {day_data['profits']:.2f}"
+                    f"[{mp.current_process().name}] 日期 {trade_ymd} 完成 | 盈亏: {day_data['profits']:.2f} | 成交: {day_data['trades']}次 | 平均持仓: {day_data['avg_holding_ticks']:.1f}快照"
                 )
                 results.append(day_data)
 
@@ -313,4 +319,8 @@ def run_parallel_backtest(
     plt.tight_layout()
     plt.show()
 
+
     return df
+
+
+

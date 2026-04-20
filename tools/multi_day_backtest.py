@@ -70,16 +70,22 @@ def backtest_multi_days(
                         & (profit_df["position"] != 0)
                     ).sum()
                 else:
-                    trade_count = profit_df['trade'].iloc[-1]
+                    trade_count = profit_df["trade"].iloc[-1]
+                # 获取平均持仓时间（快照数）
+                avg_holding_ticks = 0
+                if "holding" in profit_df.columns:
+                    avg_holding_ticks = profit_df["holding"].iloc[-1]
+
                 # 构造当日摘要
                 day_data = {
                     "trade_ymd": trade_ymd,
-                    "profits": round(last_row["profits"].values[0],2),
+                    "profits": round(last_row["profits"].values[0], 2),
                     "trades": int(trade_count),
+                    "avg_holding_ticks": round(avg_holding_ticks, 2),
                 }
                 all_day_summaries.append(day_data)
                 print(
-                    f"日期 {trade_ymd} 完成，盈亏: {day_data['profits']:.2f}, 成交: {day_data['trades']}次"
+                    f"日期 {trade_ymd} 完成，盈亏: {day_data['profits']:.2f}, 成交: {day_data['trades']}次, 平均持仓: {day_data['avg_holding_ticks']:.1f}快照"
                 )
 
         except (SystemExit, Exception) as e:
@@ -155,6 +161,13 @@ def backtest_summary(daily_df):
     avg_loss = abs(loss_days["profits"].mean()) if len(loss_days) > 0 else 0
     profit_factor = avg_win / avg_loss if avg_loss != 0 else 0
 
+    # 加权平均持仓时间计算（按交易次数加权）
+    weighted_avg_holding = 0
+    if total_trades > 0 and "avg_holding_ticks" in daily_df.columns:
+        # 按每日交易次数加权计算平均持仓时间
+        weighted_sum = (daily_df["avg_holding_ticks"] * daily_df["trades"]).sum()
+        weighted_avg_holding = weighted_sum / total_trades
+
     summary = {
         "测试天数": total_days,
         "累计总盈亏": round(total_profits, 2),
@@ -167,6 +180,7 @@ def backtest_summary(daily_df):
         "每笔交易平均盈利": round(total_profits / total_trades, 2)
         if total_trades > 0
         else 0,
+        "加权平均持仓时间(快照)": round(weighted_avg_holding, 2),
     }
 
     return summary
