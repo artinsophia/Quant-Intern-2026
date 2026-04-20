@@ -67,9 +67,6 @@ class FeatureExtractor:
             return 0.0
         return numerator / denominator
     
-    @property
-    def volume(self) -> float:
-        return np.sum(self.bid_volume) + np.sum(self.ask_volume)
     
     # trade
     @property
@@ -100,10 +97,13 @@ class FeatureExtractor:
 
         short_buy = np.sum(self.bid_volume[-self.short_window:])
         short_sell = np.sum(self.ask_volume[-self.short_window:])
+        
+        volume = total_buy + total_sell
+        volume_short = short_buy + short_sell
 
         alpha_01 = short_buy / (total_buy + 1e-9)
         alpha_02 = short_sell / (total_sell + 1e-9)
-        alpha_03 = (short_buy - short_sell) / (short_buy + short_sell + 1e-9)
+        alpha_03 = (short_buy - short_sell) / (volume_short + 1e-9)
 
         start_price = self.snap_slice[-self.short_window].get("price_last")
         end_price = self.snap_slice[-1].get("price_last")
@@ -119,7 +119,7 @@ class FeatureExtractor:
             "volatility": self.volatility,
             "spread": self.spread,
             "WAMP": self.wamp,
-            "volume": self.volume,
+            "volume": volume,
             "alpha_01": alpha_01,
             "alpha_02": alpha_02,
             "alpha_03": alpha_03,

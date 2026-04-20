@@ -1,3 +1,7 @@
+## [2026-4-20]
+### 1. Add delay snap
+### 2. Avg holding time 
+
 ## [2026-4-17]
 ### 1. Optimize time of creat_x() : a day from 15s past to 7s
 ### 2. Implement my first mature strategy

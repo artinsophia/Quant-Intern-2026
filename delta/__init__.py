@@ -9,6 +9,7 @@ from .train import (
     get_trade_dates,
     split_dates,
     split_dates_by_range,
+    split_dates_randomly,
 )
 from .main import main
 from .models import BaseModel, XGBoostModel, ModelFactory
@@ -28,6 +29,7 @@ __all__ = [
     "get_trade_dates",
     "split_dates",
     "split_dates_by_range",
+    "split_dates_randomly",
     "main",
     "BaseModel",
     "XGBoostModel",

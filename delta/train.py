@@ -295,26 +295,6 @@ def get_trade_dates():
         "20260225",
         "20260226",
         "20260227",
-        "20260302",
-        "20260303",
-        "20260304",
-        "20260305",
-        "20260306",
-        "20260309",
-        "20260310",
-        "20260311",
-        "20260312",
-        "20260313",
-        "20260316",
-        "20260317",
-        "20260318",
-        "20260319",
-        "20260320",
-        "20260323",
-        "20260324",
-        "20260325",
-        "20260326",
-        "20260327",
     ]
     return trade_dates
 
@@ -391,5 +371,86 @@ def split_dates_by_range(
         print(f"测试集: {test_dates[0]} ~ {test_dates[-1]} ({len(test_dates)}天)")
     else:
         print("测试集: 无")
+
+    return train_dates, valid_dates, test_dates
+
+
+def split_dates_randomly(
+    trade_dates, test_days_min=23, valid_days=0, random_seed=None, shuffle=True
+):
+    """随机划分日期为训练集和测试集（默认不要验证集）
+
+    Args:
+        trade_dates: 完整的交易日列表
+        test_days_min: 测试集最少天数，默认为23天
+        valid_days: 验证集天数，默认为0（不要验证集）
+        random_seed: 随机种子，用于可重复性
+        shuffle: 是否打乱日期顺序，默认为True
+
+    Returns:
+        train_dates, valid_dates, test_dates
+
+    Raises:
+        ValueError: 如果总天数不足或测试集天数不足
+    """
+    import random
+
+    # 设置随机种子
+    if random_seed is not None:
+        random.seed(random_seed)
+
+    # 检查总天数是否足够
+    total_days = len(trade_dates)
+    required_days = test_days_min + valid_days
+
+    if total_days <= required_days:
+        raise ValueError(
+            f"总天数({total_days})不足，至少需要{required_days + 1}天 "
+            f"(测试集最少{test_days_min}天 + 验证集{valid_days}天 + 训练集至少1天)"
+        )
+
+    # 如果需要打乱，创建日期的副本并打乱
+    if shuffle:
+        dates_to_shuffle = trade_dates.copy()
+        random.shuffle(dates_to_shuffle)
+    else:
+        dates_to_shuffle = trade_dates
+
+    # 划分日期
+    # 首先分配测试集
+    test_dates = dates_to_shuffle[:test_days_min]
+
+    # 然后分配验证集（如果有）
+    if valid_days > 0:
+        valid_dates = dates_to_shuffle[test_days_min : test_days_min + valid_days]
+        # 剩余为训练集
+        train_dates = dates_to_shuffle[test_days_min + valid_days :]
+    else:
+        valid_dates = []
+        # 剩余为训练集
+        train_dates = dates_to_shuffle[test_days_min:]
+
+    # 确保训练集不为空
+    if not train_dates:
+        raise ValueError("训练集为空，请减少测试集或验证集的天数")
+
+    # 排序日期（可选，保持日期顺序）
+    train_dates.sort()
+    if valid_dates:
+        valid_dates.sort()
+    test_dates.sort()
+
+    # 打印结果
+    print(
+        f"随机划分结果（随机种子: {random_seed if random_seed is not None else '未设置'}）:"
+    )
+    print(f"训练集: {train_dates[0]} ~ {train_dates[-1]} ({len(train_dates)}天)")
+
+    if valid_dates:
+        print(f"验证集: {valid_dates[0]} ~ {valid_dates[-1]} ({len(valid_dates)}天)")
+    else:
+        print("验证集: 无")
+
+    print(f"测试集: {test_dates[0]} ~ {test_dates[-1]} ({len(test_dates)}天)")
 
     return train_dates, valid_dates, test_dates
