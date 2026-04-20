@@ -81,30 +81,31 @@ def backtest_quick(instrument_id, trade_ymd, strategy_name, position_dict, remak
     
     # 最终动态净盈亏
     df['profits'] = df['cum_cash'] + df['inventory_value']
-
+    
     # 6. 格式化输出
     result_df = df.reset_index()[['time_mark', 'price_last', 'pos', 'profits']]
     result_df.columns = ['time_mark', 'price_last', 'position', 'profits']
+    result_df['holding'] = get_avg_holding_ticks(df)
 
     with open(cache_file, "wb") as f: pickle.dump(result_df, f)
     return result_df
 
-def backtest_summary_quick(result_df):
-    """
-    极简统计
-    """
-    if result_df is None or len(result_df) == 0: return None
+def get_avg_holding_ticks(df):
+    # 1. 找到所有非零仓位的行
+    # 创建一个辅助列，判断是否在持仓（不等于0即为持仓）
+    holding_mask = df['pos'] != 0
     
-    # 注意：累计盈亏直接取最后一行，不要再 sum() 了！
-    final_profit = result_df['profits'].iloc[-1]
-    
-    # 统计从 0 变为非 0 的次数（开仓）
-    trade_count = ((result_df['position'].shift(1).fillna(0) == 0) & (result_df['position'] != 0)).sum()
+    if not holding_mask.any():
+        return 0
 
+    # 2. 识别连续持仓的区间
+    # 当 is_holding 的状态发生变化时，累加生成 ID
+    # 这样每一段连续的持仓（或连续的空仓）都会有一个唯一的 block_id
+    holding_blocks = (holding_mask != holding_mask.shift()).cumsum()
     
-    summary = {
-        "总成交次数": int(trade_count),
-        "最终总盈亏": round(final_profit, 2),
-        "最大回撤": round((result_df['profits'].cummax() - result_df['profits']).max(), 2)
-    }
-    return summary
+    # 3. 过滤出仅属于“持仓中”的 block
+    # 并统计每个 block 包含的行数 (size)
+    holding_durations = holding_blocks[holding_mask].value_counts()
+    
+    # 4. 计算平均行数（快照数）
+    return holding_durations.mean()
