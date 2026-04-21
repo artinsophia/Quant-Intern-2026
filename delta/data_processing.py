@@ -19,6 +19,9 @@ class TrainValidTest:
         self.y_window = getattr(self, "y_window", 1)
         self.short_window = getattr(self, "short_window", 5)
         self.long_window = getattr(self, "long_window", 20)
+        self.vol_window = getattr(
+            self, "vol_window", 900
+        )  # 添加波动率窗口参数，默认900
 
         self.snap_list = snap_list.copy()
         self.create_feature = feature_func
@@ -35,6 +38,9 @@ class TrainValidTest:
         # delta 保持为列表或数组均可
         self.delta = (bid_arr - ask_arr).tolist()
 
+        # 提取价格序列用于波动率计算
+        self.prices = np.array([row["price_last"] for row in self.snap_list])
+
     def samples(self):
         feature_records = []
         labels = []
@@ -50,7 +56,17 @@ class TrainValidTest:
                 self.snap_list[i - self.x_window : i], self.short_window
             )
 
-            volatility = x_dict.get("volatility", 0.0)
+            # 使用更大的窗口计算波动率（仿照strategy.py中的方式）
+            start_idx = max(0, i - self.vol_window)
+            price_window = self.prices[start_idx:i]
+            if len(price_window) > 0:
+                mean_price = np.mean(price_window)
+                if mean_price != 0:
+                    volatility = np.std(price_window) / mean_price
+                else:
+                    volatility = 0.0
+            else:
+                volatility = 0.0
             y_val = self.create_y(
                 self.snap_list[i : i + self.y_window],
                 volatility,
