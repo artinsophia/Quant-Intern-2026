@@ -178,7 +178,7 @@ class XGBoostModel(BaseModel):
         pos_count = (y_train == 1).sum()
         neg_count = (y_train == 0).sum()
         if pos_count > 0:
-            return np.sqrt(neg_count / pos_count)
+            return  neg_count / pos_count             # np.sqrt(neg_count / pos_count)
         return 1.0
 
     def _optimize_threshold(self, X_valid, y_valid):

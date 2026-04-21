@@ -88,7 +88,7 @@ class StrategyDemo:
         # 目标止盈
         if self.position_last != 0:
             self.holding_snap += 1
-            if self.holding_snap >= 1000:
+            if self.holding_snap >= self.y_window:
                 current_signal = 0
 
             if self.position_last == 1:

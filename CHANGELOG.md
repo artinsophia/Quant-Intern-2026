@@ -1,3 +1,6 @@
+## [2026-4-21]
+### 1. Figure out how to clear my position 
+
 ## [2026-4-20]
 ### 1. Add delay snap
 ### 2. Avg holding time 
