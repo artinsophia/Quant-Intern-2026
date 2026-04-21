@@ -28,8 +28,9 @@ class StrategyDemo:
         self.price_buffer = deque(maxlen=self.vol_window)
 
         self.max_favorable_price = 0
-
+        self.entry_price = 0
         self.prev_signal = 0
+        self.holding_snap = 0
 
     def close(self):
         self.delta_buffer.clear()
@@ -84,6 +85,23 @@ class StrategyDemo:
         current_signal = self.prev_signal
 
 
+        # 目标止盈
+        if self.position_last != 0:
+            self.holding_snap += 1
+            if self.holding_snap >= self.x_window:
+                current_signal = 0
+
+            if self.position_last == 1:
+                if price - self.entry_price > self.k_up * rolling_std * self.gamma:
+                    current_signal = 0
+                if std_delta > self.reset_threshold and prob > self.model.best_threshold + self.reset_confidence:
+                    self.holding_snap = 0
+            elif self.position_last == -1:
+                if self.entry_price - price > self.k_down * rolling_std * self.gamma:
+                    current_signal = 0
+                if std_delta < -self.reset_threshold and prob > self.model.best_threshold + self.reset_confidence:
+                    self.holding_snap = 0
+
 
 
         # 回撤平仓或反向信号平仓
@@ -110,12 +128,15 @@ class StrategyDemo:
             elif std_delta < -self.open_threshold:
                 current_signal = -1
 
+        # 实际行为
         if current_signal != self.prev_signal:
-            if current_signal == 0:
+            if current_signal == 0: # 平仓
                 self.position_last = 0
                 self.prev_signal = 0
                 self.max_favorable_price = 0
-            else:
+                self.entry_price = 0
+                self.holding_snap = 0
+            else: # 开仓
                 if (
                     prob is not None
                     and prob > self.model.best_threshold + self.open_confidence
@@ -123,3 +144,4 @@ class StrategyDemo:
                     self.position_last = current_signal
                     self.prev_signal = current_signal
                     self.max_favorable_price = price
+                    self.entry_price = price
