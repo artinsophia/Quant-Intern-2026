@@ -89,16 +89,38 @@ def backtest_multi_days(
                 if "holding" in profit_df.columns:
                     avg_holding_ticks = profit_df["holding"].iloc[-1]
 
+                # 获取交易统计信息
+                win_trades = 0
+                loss_trades = 0
+                win_rate = 0
+                trade_pnl = 0
+                avg_trade_pnl = 0
+
+                if hasattr(profit_df, "attrs") and "trades" in profit_df.attrs:
+                    from backtest_quick import calculate_trade_stats
+
+                    trade_stats = calculate_trade_stats(profit_df.attrs["trades"])
+                    win_trades = trade_stats["win_trades"]
+                    loss_trades = trade_stats["loss_trades"]
+                    win_rate = round(trade_stats["win_rate"] * 100, 2)
+                    trade_pnl = round(trade_stats["total_pnl"], 2)
+                    avg_trade_pnl = round(trade_stats["avg_pnl_per_trade"], 2)
+
                 # 构造当日摘要
                 day_data = {
                     "trade_ymd": trade_ymd,
                     "profits": round(last_row["profits"].values[0], 2),
                     "trades": int(trade_count),
                     "avg_holding_ticks": round(avg_holding_ticks, 2),
+                    "win_trades": win_trades,
+                    "loss_trades": loss_trades,
+                    "win_rate": win_rate,
+                    "trade_pnl": trade_pnl,
+                    "avg_trade_pnl": avg_trade_pnl,
                 }
                 all_day_summaries.append(day_data)
                 print(
-                    f"日期 {trade_ymd} 完成，盈亏: {day_data['profits']:.2f}, 成交: {day_data['trades']}次, 平均持仓: {day_data['avg_holding_ticks']:.1f}快照"
+                    f"日期 {trade_ymd} 完成，盈亏: {day_data['profits']:.2f}, 成交: {day_data['trades']}次, 胜率: {day_data['win_rate']:.1f}%, 平均持仓: {day_data['avg_holding_ticks']:.1f}快照"
                 )
 
         except (SystemExit, Exception) as e:
@@ -181,18 +203,37 @@ def backtest_summary(daily_df):
         weighted_sum = (daily_df["avg_holding_ticks"] * daily_df["trades"]).sum()
         weighted_avg_holding = weighted_sum / total_trades
 
+    # 每手胜率统计
+    total_win_trades = 0
+    total_loss_trades = 0
+    weighted_win_rate = 0
+    avg_trade_pnl = 0
+
+    if "win_trades" in daily_df.columns and "loss_trades" in daily_df.columns:
+        total_win_trades = daily_df["win_trades"].sum()
+        total_loss_trades = daily_df["loss_trades"].sum()
+        if total_trades > 0:
+            weighted_win_rate = total_win_trades / total_trades * 100
+
+    if "trade_pnl" in daily_df.columns:
+        total_trade_pnl = daily_df["trade_pnl"].sum()
+        avg_trade_pnl = total_trade_pnl / total_trades if total_trades > 0 else 0
+    else:
+        avg_trade_pnl = total_profits / total_trades if total_trades > 0 else 0
+
     summary = {
         "测试天数": total_days,
         "累计总盈亏": round(total_profits, 2),
         "总成交次数": int(total_trades),
+        "盈利交易次数": int(total_win_trades),
+        "亏损交易次数": int(total_loss_trades),
+        "加权每手胜率%": round(weighted_win_rate, 2),
         "日均盈亏": round(total_profits / total_days, 2),
         "胜率(天)%": round(len(win_days) / total_days * 100, 2),
         "盈亏比(日均)": round(profit_factor, 2),
         "最大单日盈利": round(daily_df["profits"].max(), 2),
         "最大单日亏损": round(daily_df["profits"].min(), 2),
-        "每笔交易平均盈利": round(total_profits / total_trades, 2)
-        if total_trades > 0
-        else 0,
+        "每笔交易平均盈利": round(avg_trade_pnl, 2),
         "加权平均持仓时间(快照)": round(weighted_avg_holding, 2),
     }
 

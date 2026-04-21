@@ -185,10 +185,19 @@ def single_day_backtest(
         if "holding" in profit_df.columns:
             avg_holding_ticks = profit_df["holding"].iloc[-1]
 
+        # 获取交易统计信息
+        win_rate_text = ""
+        if hasattr(profit_df, "attrs") and "trades" in profit_df.attrs:
+            from backtest_quick import calculate_trade_stats
+
+            trade_stats = calculate_trade_stats(profit_df.attrs["trades"])
+            win_rate = trade_stats["win_rate"] * 100
+            win_rate_text = f" | Win Rate: {win_rate:.1f}%"
+
         stats_text = (
             f"Total P&L: {total_pnl:.2f} | "
             f"Avg P&L/Trade: {avg_pnl_per_trade:.2f} | "
-            f"Trade Count: {trade_count} | "
+            f"Trade Count: {trade_count}{win_rate_text} | "
             f"Avg Holding: {avg_holding_ticks:.1f} ticks"
         )
         fig.text(
@@ -274,6 +283,7 @@ def delay_open_position(position_dict, delay_snaps=0):
 
     # 将新序列写回字典
     return {sorted_times[idx]: new_positions[idx] for idx in range(n)}
+
 
 def analyze_position_segments(position_history, price_history):
     """
@@ -544,10 +554,19 @@ def plot_delta_history(
         if "holding" in profit_df.columns:
             avg_holding_ticks = profit_df["holding"].iloc[-1]
 
+        # 获取交易统计信息
+        win_rate_text = ""
+        if hasattr(profit_df, "attrs") and "trades" in profit_df.attrs:
+            from backtest_quick import calculate_trade_stats
+
+            trade_stats = calculate_trade_stats(profit_df.attrs["trades"])
+            win_rate = trade_stats["win_rate"] * 100
+            win_rate_text = f" | Win Rate: {win_rate:.1f}%"
+
         stats_text = (
             f"Total P&L: {total_pnl:.2f} | "
             f"Avg P&L/Trade: {avg_pnl_per_trade:.2f} | "
-            f"Trade Count: {trade_count} | "
+            f"Trade Count: {trade_count}{win_rate_text} | "
             f"Avg Holding: {avg_holding_ticks:.1f} ticks"
         )
         fig.text(
