@@ -305,7 +305,7 @@ def run_parallel_backtest(
     pool = mp.Pool(processes=actual_cores)
 
     async_result = pool.starmap_async(worker_process, args_list)
-    batch_results = async_result.get(timeout=60)  # 超时60s
+    batch_results = async_result.get(timeout=120)  # 超时60s
     print("回测结束，强制终止所有子进程")
     pool.terminate()
     pool.join()
