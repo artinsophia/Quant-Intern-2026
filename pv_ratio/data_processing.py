@@ -29,10 +29,10 @@ class TrainValidTest:
 
         # 使用列表推导式替代，保持纯 Python/NumPy 风格
         bid_arr = np.array(
-            [sum(vol for _, vol in row["buy_trade"]) for row in self.snap_list]
+            [sum(vol for _, vol in row["bid_book"]) for row in self.snap_list[: self.standard_num]]
         )
         ask_arr = np.array(
-            [sum(vol for _, vol in row["sell_trade"]) for row in self.snap_list]
+            [sum(vol for _, vol in row["ask_book"]) for row in self.snap_list[: self.standard_num]]
         )
 
         # delta 保持为列表或数组均可

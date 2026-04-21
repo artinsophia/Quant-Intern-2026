@@ -48,8 +48,8 @@ class StrategyDemo:
         if len(self.price_buffer) < self.vol_window:
             return
 
-        delta = sum(vol for _, vol in snap["buy_trade"][: self.standard_num]) - sum(
-            vol for _, vol in snap["sell_trade"][: self.standard_num]
+        delta = sum(vol for _, vol in snap["bid_book"][: self.standard_num]) - sum(
+            vol for _, vol in snap["ask_book"][: self.standard_num]
         )
         self.delta_buffer.append(delta)
         if len(self.delta_buffer) < self.x_window:
@@ -88,7 +88,7 @@ class StrategyDemo:
         # 目标止盈
         if self.position_last != 0:
             self.holding_snap += 1
-            if self.holding_snap >= self.x_window:
+            if self.holding_snap >= 1000:
                 current_signal = 0
 
             if self.position_last == 1:

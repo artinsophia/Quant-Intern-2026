@@ -21,9 +21,9 @@ class FeatureExtractor:
             for snap in self.snap_slice
         ])
         self.bid_volume = np.array([
-            sum(v for _,v in s["buy_trade"]) for s in snap_slice])
+            sum(v for _,v in s["bid_book"]) for s in snap_slice])
         self.ask_volume = np.array([
-            sum(v for _,v in s["sell_trade"]) for s in snap_slice])
+            sum(v for _,v in s["ask_book"]) for s in snap_slice])
         self.trade_count = np.array([s['num_trades'] for s in snap_slice])
 
         
