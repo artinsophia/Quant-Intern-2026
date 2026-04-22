@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 
 class FeatureExtractor:
     def __init__(self, snap_slice: List[Dict[str, Any]], short_window: int = 60):
+        self.eps = 1e-8
         if not snap_slice:
             raise ValueError("snap_slice cannot be empty")
 
@@ -83,9 +84,10 @@ class FeatureExtractor:
     def alpha_05(self) -> float:
         buys = sum(len(row["buy_trade"]) for row in self.snap_slice[-self.short_window:])
         sells = sum(len(row["sell_trade"]) for row in self.snap_slice[-self.short_window:])
-        return abs(buys - sells) / (buys + sells + 1e-9)
+        return self._safe_div(abs(buys - sells) ,buys + sells)
     
-    
+    def _safe_div(self, a: float, b: float) -> float:
+        return a / b if abs(b) > self.eps else 0.0
 
     
 
@@ -103,16 +105,17 @@ class FeatureExtractor:
 
         alpha_01 = short_buy / (total_buy + 1e-9)
         alpha_02 = short_sell / (total_sell + 1e-9)
-        alpha_03 = abs(short_buy - short_sell) / (volume_short + 1e-9) 
+        alpha_03 = self._safe_div(abs(short_buy - short_sell) , volume_short) 
 
         start_price = self.snap_slice[-self.short_window].get("price_last")
         end_price = self.snap_slice[-1].get("price_last")
-        price_diff = abs(end_price - start_price) / (start_price + 1e-9) 
-        alpha_06 = price_diff / (short_buy + short_sell + 1e-9)
+        price_diff = self._safe_div(abs(end_price - start_price) , start_price)
+
+        alpha_06 =  self._safe_div(price_diff ,volume_short)
 
         prices_diffs = np.diff(self.prices)
         total_abs_diff = np.sum(np.abs(prices_diffs))
-        alpha_07 = np.abs(np.sum(prices_diffs)) / (total_abs_diff + 1e-9)
+        alpha_07 = self._safe_div(abs(np.sum(prices_diffs)), total_abs_diff )
 
         return {
             "num_trades": self.last.get("num_trades", 0) - self.snap_slice[-2].get("num_trades", 0),

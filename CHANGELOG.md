@@ -1,3 +1,7 @@
+## [2026-4-22]
+### 1. Alpha test by IC IR
+### 1. Alpha in , Alpha out
+
 ## [2026-4-21]
 ### 1. Figure out how to clear my position 
 
