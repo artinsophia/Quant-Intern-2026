@@ -55,11 +55,11 @@ def backtest_quick(
     # 3. 映射仓位
     pos_ser = pd.Series(position_dict)
     pos_ser.index = pos_ser.index.astype(int)
-    df["pos"] = pos_ser
-    df["pos"] = df["pos"].ffill().fillna(0)
+    df["target_pos"] = pos_ser
+    df["pos"] = df["target_pos"].shift(1).ffill().fillna(0)
 
-    # 强制尾盘平仓 (最后5分钟)
-    df.iloc[-300:, df.columns.get_loc("pos")] = 0
+    # 强制尾盘平仓 (最后10分钟)
+    df.iloc[-600:, df.columns.get_loc("pos")] = 0
 
     # 4. 【核心计算】对价成交逻辑
     base_volume = 100

@@ -32,6 +32,11 @@ class StrategyDemo:
         self.prev_signal = 0
         self.holding_snap = 0
 
+        # 纠错
+        self.max_consecutive_losses = getattr(self, "max_consecutive_losses", 3)
+        self.consecutive_losses_today = 0
+        self.stop_open_today = False
+
     def close(self):
         self.delta_buffer.clear()
         self.feature_buffer.clear()
@@ -42,6 +47,12 @@ class StrategyDemo:
 
     def on_snap(self, snap: Dict[str, Any]) -> None:
         price = snap.get("price_last")
+        bid_book = snap.get("bid_book") or []
+        ask_book = snap.get("ask_book") or []
+
+        buy = bid_book[0][0] if bid_book else price
+        sell = ask_book[0][0] if ask_book else price
+
         if not price:
             return
         self.price_buffer.append(price)
@@ -92,12 +103,12 @@ class StrategyDemo:
                 current_signal = 0
 
             if self.position_last == 1:
-                if price - self.entry_price > self.k_up * rolling_std * self.gamma:
+                if sell - self.entry_price > (self.k_up + self.gamma) * rolling_std:
                     current_signal = 0
                 if std_delta > self.reset_threshold and prob > self.model.best_threshold + self.reset_confidence:
                     self.holding_snap = 0
             elif self.position_last == -1:
-                if self.entry_price - price > self.k_down * rolling_std * self.gamma:
+                if self.entry_price - buy > (self.k_down + self.gamma) * rolling_std:
                     current_signal = 0
                 if std_delta < -self.reset_threshold and prob > self.model.best_threshold + self.reset_confidence:
                     self.holding_snap = 0
@@ -106,23 +117,23 @@ class StrategyDemo:
 
         # 回撤平仓或反向信号平仓
         if self.position_last == 1:
-            self.max_favorable_price = max(self.max_favorable_price, price)
-            pullback = self.max_favorable_price - price
+            self.max_favorable_price = max(self.max_favorable_price, sell)
+            pullback = self.max_favorable_price - sell
             if pullback >= dynamic:
                 current_signal = 0
             if std_delta < - self.close_threshold and prob > self.model.best_threshold + self.close_confidence:
                 current_signal = 0
 
         elif self.position_last == -1:
-            self.max_favorable_price = min(self.max_favorable_price, price)
-            pullback = price - self.max_favorable_price
+            self.max_favorable_price = min(self.max_favorable_price, buy)
+            pullback = buy - self.max_favorable_price
             if pullback >= dynamic:
                 current_signal = 0
             if std_delta > self.close_threshold and prob > self.model.best_threshold + self.close_confidence:
                 current_signal = 0
         
         # 开仓信号
-        if self.position_last == 0:
+        if self.position_last == 0 and not self.stop_open_today:
             if std_delta > self.open_threshold:
                 current_signal = 1
             elif std_delta < -self.open_threshold:
@@ -136,6 +147,22 @@ class StrategyDemo:
                 self.max_favorable_price = 0
                 self.entry_price = 0
                 self.holding_snap = 0
+
+                # 连续k次亏损冻结策略
+                if self.position_last == 1:
+                    pnl = sell - self.entry_price
+                elif self.position_last == -1:
+                    pnl = self.entry_price - buy
+                else:
+                    pnl = 0
+
+                if pnl < 0:
+                    self.consecutive_losses_today += 1
+                    if self.consecutive_losses_today >= self.max_consecutive_losses:
+                        self.stop_open_today = True
+                else:
+                    self.consecutive_losses_today = 0
+
             else: # 开仓
                 if (
                     prob is not None
@@ -143,5 +170,9 @@ class StrategyDemo:
                 ):
                     self.position_last = current_signal
                     self.prev_signal = current_signal
-                    self.max_favorable_price = price
                     self.entry_price = price
+                    if current_signal == 1:
+                        self.max_favorable_price = sell
+                    else:
+                        self.max_favorable_price = buy
+                        

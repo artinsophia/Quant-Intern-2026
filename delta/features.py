@@ -47,7 +47,7 @@ class FeatureExtractor:
         bid, ask = self.best_bid, self.best_ask
         if np.isnan(bid) or np.isnan(ask):
             return np.nan
-        return (ask - bid) / bid 
+        return abs(ask - bid) / bid 
 
     @property
     def volatility(self) -> float:
