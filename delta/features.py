@@ -83,7 +83,7 @@ class FeatureExtractor:
     def alpha_05(self) -> float:
         buys = sum(len(row["buy_trade"]) for row in self.snap_slice[-self.short_window:])
         sells = sum(len(row["sell_trade"]) for row in self.snap_slice[-self.short_window:])
-        return (buys - sells) / (buys + sells + 1e-9)
+        return abs(buys - sells) / (buys + sells + 1e-9)
     
     
 
@@ -103,7 +103,7 @@ class FeatureExtractor:
 
         alpha_01 = short_buy / (total_buy + 1e-9)
         alpha_02 = short_sell / (total_sell + 1e-9)
-        alpha_03 = abs(short_buy - short_sell) / (volume_short + 1e-9) # 消除选择偏差
+        alpha_03 = abs(short_buy - short_sell) / (volume_short + 1e-9) 
 
         start_price = self.snap_slice[-self.short_window].get("price_last")
         end_price = self.snap_slice[-1].get("price_last")
