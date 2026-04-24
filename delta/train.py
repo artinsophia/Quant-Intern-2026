@@ -4,11 +4,34 @@ from sklearn.metrics import (
     precision_recall_curve,
     auc,
     average_precision_score,
+    f1_score,
+    precision_score,
+    recall_score,
 )
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import random
+import sys
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from .models.factory import ModelFactory
+
+sys.path.append("/home/jovyan/base_demo")
+import base_tool
+
+RECOMMENDED_TRAINING_PRESETS = {
+    "recent_6d": {
+        "strategy": "recent",
+        "train_days": 6,
+    },
+    "volatility_12d": {
+        "strategy": "volatility_stratified",
+        "train_days": 12,
+        "n_bins": 5,
+        "random_seed": 42,
+    },
+}
 
 
 def train_model(X_train, y_train, X_valid, y_valid, param_dict, feature_names=None):
@@ -396,3 +419,502 @@ def split_dates_randomly(
     print(f"测试集: {test_dates[0]} ~ {test_dates[-1]} ({len(test_dates)}天)")
 
     return train_dates, valid_dates, test_dates
+
+
+def load_daily_sample_cache(
+    dates,
+    instrument_id,
+    param_dict,
+    feature_func,
+    y_func,
+):
+    """按天加载样本，便于做基于日期的抽样实验。"""
+    from .data_processing import TrainValidTest
+
+    sample_cache = {}
+
+    for date in dates:
+        try:
+            snap_list = base_tool.snap_list_load(instrument_id, date)
+            if len(snap_list) < param_dict["x_window"] + param_dict["y_window"]:
+                print(f"{date}: 数据不足，跳过")
+                continue
+
+            tv = TrainValidTest(snap_list, param_dict, feature_func, y_func)
+            X_day, y_day = tv.samples()
+            if not X_day:
+                print(f"{date}: 无触发样本，跳过")
+                continue
+
+            feature_names = list(X_day[0].keys())
+            X_day_array = np.array(
+                [[row[col] for col in feature_names] for row in X_day], dtype=float
+            )
+            y_day_array = np.array(y_day)
+            sample_cache[date] = {
+                "X": X_day_array,
+                "y": y_day_array,
+                "feature_names": feature_names,
+                "sample_count": len(y_day_array),
+                "positive_rate": float(y_day_array.mean()) if len(y_day_array) else 0.0,
+            }
+            print(f"{date}: 产生 {len(y_day_array)} 个样本")
+        except Exception as e:
+            print(f"{date}: 加载失败 - {e}")
+
+    return sample_cache
+
+
+def concat_sample_cache(sample_cache, dates):
+    """按日期顺序拼接缓存样本。"""
+    available_dates = [date for date in dates if date in sample_cache]
+    if not available_dates:
+        return np.array([]), np.array([]), []
+
+    X_parts = [sample_cache[date]["X"] for date in available_dates]
+    y_parts = [sample_cache[date]["y"] for date in available_dates]
+    feature_names = sample_cache[available_dates[0]]["feature_names"]
+    X_total = np.vstack(X_parts)
+    y_total = np.concatenate(y_parts)
+    return X_total, y_total, feature_names
+
+
+def summarize_daily_volatility(
+    instrument_id,
+    trade_dates,
+    price_field="price_last",
+):
+    """计算每个交易日的波动率与基础统计。"""
+    records = []
+
+    for trade_ymd in trade_dates:
+        try:
+            snap_list = base_tool.snap_list_load(instrument_id, trade_ymd)
+            prices = np.array(
+                [
+                    snap.get(price_field)
+                    for snap in snap_list
+                    if snap.get(price_field) is not None
+                ],
+                dtype=float,
+            )
+            prices = prices[np.isfinite(prices)]
+
+            if len(prices) < 2:
+                print(f"{trade_ymd}: 价格点不足，跳过波动率统计")
+                continue
+
+            returns = np.diff(prices) / prices[:-1]
+            returns = returns[np.isfinite(returns)]
+            realized_volatility = float(np.sqrt(np.sum(np.square(returns))))
+            normalized_range = float((prices.max() - prices.min()) / prices[0])
+            close_to_close_return = float(prices[-1] / prices[0] - 1)
+            intraday_std = float(np.std(prices) / np.mean(prices))
+
+            records.append(
+                {
+                    "trade_ymd": trade_ymd,
+                    "n_snapshots": int(len(prices)),
+                    "open_price": float(prices[0]),
+                    "close_price": float(prices[-1]),
+                    "close_to_close_return": close_to_close_return,
+                    "realized_volatility": realized_volatility,
+                    "intraday_std": intraday_std,
+                    "normalized_range": normalized_range,
+                }
+            )
+        except Exception as e:
+            print(f"{trade_ymd}: 波动率统计失败 - {e}")
+
+    stats_df = pd.DataFrame(records).sort_values("trade_ymd").reset_index(drop=True)
+    return stats_df
+
+
+def assign_volatility_bins(
+    stats_df,
+    vol_col="realized_volatility",
+    n_bins=5,
+):
+    """基于波动率分位数给交易日打桶。"""
+    if stats_df.empty:
+        return stats_df.copy()
+
+    df = stats_df.copy()
+    unique_count = df[vol_col].nunique(dropna=True)
+    if unique_count == 0:
+        df["vol_bucket"] = 0
+        return df
+
+    actual_bins = max(1, min(int(n_bins), int(unique_count)))
+    if actual_bins == 1:
+        df["vol_bucket"] = 0
+        return df
+
+    df["vol_bucket"] = pd.qcut(
+        df[vol_col],
+        q=actual_bins,
+        labels=False,
+        duplicates="drop",
+    )
+    df["vol_bucket"] = df["vol_bucket"].astype(int)
+    return df
+
+
+def sample_dates_by_volatility(
+    stats_df,
+    sample_size,
+    random_seed=42,
+    min_per_bucket=1,
+    vol_col="realized_volatility",
+    n_bins=5,
+):
+    """按波动率桶做近似分层抽样，优先保证每桶有代表。"""
+    if sample_size <= 0:
+        return []
+    if stats_df.empty:
+        return []
+
+    df = assign_volatility_bins(stats_df, vol_col=vol_col, n_bins=n_bins)
+    rng = random.Random(random_seed)
+    bucket_to_dates = {}
+    for bucket, bucket_df in df.groupby("vol_bucket"):
+        dates = bucket_df["trade_ymd"].tolist()
+        rng.shuffle(dates)
+        bucket_to_dates[bucket] = dates
+
+    buckets = sorted(bucket_to_dates.keys())
+    available_total = sum(len(dates) for dates in bucket_to_dates.values())
+    target_size = min(sample_size, available_total)
+
+    selected = []
+    remaining = {bucket: dates.copy() for bucket, dates in bucket_to_dates.items()}
+
+    if target_size >= len(buckets) * min_per_bucket:
+        for bucket in buckets:
+            for _ in range(min_per_bucket):
+                if remaining[bucket] and len(selected) < target_size:
+                    selected.append(remaining[bucket].pop())
+
+    while len(selected) < target_size:
+        active_buckets = [bucket for bucket in buckets if remaining[bucket]]
+        if not active_buckets:
+            break
+
+        counts = np.array([len(remaining[bucket]) for bucket in active_buckets], dtype=float)
+        probs = counts / counts.sum()
+        bucket = rng.choices(active_buckets, weights=probs, k=1)[0]
+        selected.append(remaining[bucket].pop())
+
+    selected.sort()
+    return selected
+
+
+def select_recent_train_dates(candidate_dates, sample_size):
+    """选择最近的若干个训练日，作为时序基线。"""
+    if sample_size <= 0:
+        return []
+    return sorted(candidate_dates)[-sample_size:]
+
+
+def select_train_dates(
+    candidate_dates,
+    strategy="recent",
+    train_days=None,
+    instrument_id=None,
+    stats_df=None,
+    random_seed=42,
+    n_bins=5,
+    vol_col="realized_volatility",
+):
+    """统一的训练日选择入口。"""
+    available_dates = sorted(candidate_dates)
+    if not available_dates:
+        return []
+
+    if train_days is None:
+        raise ValueError("train_days 不能为空")
+
+    if train_days <= 0:
+        raise ValueError("train_days 必须大于 0")
+
+    train_days = min(int(train_days), len(available_dates))
+
+    if strategy == "recent":
+        return select_recent_train_dates(available_dates, train_days)
+
+    if strategy == "random":
+        rng = random.Random(random_seed)
+        return sorted(rng.sample(available_dates, train_days))
+
+    if strategy == "volatility_stratified":
+        if stats_df is None:
+            if instrument_id is None:
+                raise ValueError(
+                    "volatility_stratified 需要提供 instrument_id 或 stats_df"
+                )
+            stats_df = summarize_daily_volatility(instrument_id, available_dates)
+
+        stats_df = stats_df[stats_df["trade_ymd"].isin(available_dates)].reset_index(
+            drop=True
+        )
+        return sample_dates_by_volatility(
+            stats_df,
+            sample_size=train_days,
+            random_seed=random_seed,
+            vol_col=vol_col,
+            n_bins=n_bins,
+        )
+
+    raise ValueError(f"未知采样策略: {strategy}")
+
+
+def select_train_dates_by_preset(
+    preset_name,
+    candidate_dates,
+    instrument_id=None,
+    stats_df=None,
+):
+    """按预设方案选择训练日。"""
+    if preset_name not in RECOMMENDED_TRAINING_PRESETS:
+        raise ValueError(
+            f"未知预设: {preset_name}, 可选: {sorted(RECOMMENDED_TRAINING_PRESETS)}"
+        )
+
+    config = RECOMMENDED_TRAINING_PRESETS[preset_name]
+    return select_train_dates(
+        candidate_dates=candidate_dates,
+        strategy=config["strategy"],
+        train_days=config["train_days"],
+        instrument_id=instrument_id,
+        stats_df=stats_df,
+        random_seed=config.get("random_seed", 42),
+        n_bins=config.get("n_bins", 5),
+    )
+
+
+def train_model_with_dates(
+    instrument_id,
+    train_dates,
+    valid_dates,
+    param_dict,
+    feature_func,
+    y_func,
+):
+    """给定训练日和验证日，直接训练模型。"""
+    all_dates = sorted(set(train_dates) | set(valid_dates))
+    sample_cache = load_daily_sample_cache(
+        all_dates,
+        instrument_id,
+        param_dict,
+        feature_func,
+        y_func,
+    )
+
+    X_train, y_train, feature_names = concat_sample_cache(sample_cache, train_dates)
+    X_valid, y_valid, _ = concat_sample_cache(sample_cache, valid_dates)
+
+    if len(y_train) == 0:
+        raise ValueError("训练集为空，无法训练模型")
+    if len(y_valid) == 0:
+        raise ValueError("验证集为空，无法训练模型")
+
+    model = train_model(
+        X_train,
+        y_train,
+        X_valid,
+        y_valid,
+        param_dict,
+        feature_names,
+    )
+    return model, sample_cache, feature_names
+
+
+def train_model_with_preset(
+    preset_name,
+    instrument_id,
+    candidate_train_dates,
+    valid_dates,
+    param_dict,
+    feature_func,
+    y_func,
+    stats_df=None,
+):
+    """按预设训练方案直接训练模型。"""
+    train_dates = select_train_dates_by_preset(
+        preset_name=preset_name,
+        candidate_dates=candidate_train_dates,
+        instrument_id=instrument_id,
+        stats_df=stats_df,
+    )
+    model, sample_cache, feature_names = train_model_with_dates(
+        instrument_id=instrument_id,
+        train_dates=train_dates,
+        valid_dates=valid_dates,
+        param_dict=param_dict,
+        feature_func=feature_func,
+        y_func=y_func,
+    )
+    return model, train_dates, sample_cache, feature_names
+
+
+def evaluate_binary_predictions(y_true, y_pred, y_prob):
+    """统一输出分类指标。"""
+    metrics = {
+        "accuracy": float(accuracy_score(y_true, y_pred)),
+        "precision": float(precision_score(y_true, y_pred, zero_division=0)),
+        "recall": float(recall_score(y_true, y_pred, zero_division=0)),
+        "f1": float(f1_score(y_true, y_pred, zero_division=0)),
+        "average_precision": float(average_precision_score(y_true, y_prob)),
+    }
+
+    precision_arr, recall_arr, _ = precision_recall_curve(y_true, y_prob)
+    metrics["pr_auc"] = float(auc(recall_arr, precision_arr))
+    metrics["positive_rate"] = float(np.mean(y_true))
+    metrics["predicted_positive_rate"] = float(np.mean(y_pred))
+    return metrics
+
+
+def run_training_subset_experiment(
+    instrument_id,
+    train_candidate_dates,
+    valid_dates,
+    test_dates,
+    param_dict,
+    feature_func,
+    y_func,
+    train_day_grid,
+    strategies=("recent", "random", "volatility_stratified"),
+    repeats=3,
+    random_seed=42,
+    n_bins=5,
+    vol_col="realized_volatility",
+):
+    """探索最少训练天数与效果之间的关系。"""
+    all_dates = sorted(set(train_candidate_dates) | set(valid_dates) | set(test_dates))
+    print("加载按天样本缓存...")
+    sample_cache = load_daily_sample_cache(
+        all_dates,
+        instrument_id,
+        param_dict,
+        feature_func,
+        y_func,
+    )
+
+    print("统计训练候选区间的日波动率...")
+    stats_df = summarize_daily_volatility(instrument_id, train_candidate_dates)
+    stats_df = assign_volatility_bins(stats_df, vol_col=vol_col, n_bins=n_bins)
+
+    X_valid, y_valid, _ = concat_sample_cache(sample_cache, valid_dates)
+    X_test, y_test, _ = concat_sample_cache(sample_cache, test_dates)
+    if len(y_valid) == 0 or len(y_test) == 0:
+        raise ValueError("验证集或测试集为空，无法开展训练天数实验")
+
+    records = []
+    train_candidate_dates = sorted(
+        [date for date in train_candidate_dates if date in sample_cache]
+    )
+    stats_df = stats_df[stats_df["trade_ymd"].isin(train_candidate_dates)].reset_index(
+        drop=True
+    )
+    max_available_days = len(train_candidate_dates)
+
+    for train_days in train_day_grid:
+        if train_days <= 0:
+            continue
+        if train_days > max_available_days:
+            print(f"train_days={train_days}: 超过可用训练日数量，跳过")
+            continue
+
+        for strategy_name in strategies:
+            run_count = repeats if strategy_name in {"random", "volatility_stratified"} else 1
+
+            for repeat_idx in range(run_count):
+                seed = random_seed + repeat_idx
+
+                if strategy_name == "recent":
+                    selected_dates = select_recent_train_dates(
+                        train_candidate_dates, train_days
+                    )
+                elif strategy_name == "random":
+                    rng = random.Random(seed)
+                    selected_dates = sorted(rng.sample(train_candidate_dates, train_days))
+                elif strategy_name == "volatility_stratified":
+                    selected_dates = sample_dates_by_volatility(
+                        stats_df,
+                        sample_size=train_days,
+                        random_seed=seed,
+                        vol_col=vol_col,
+                        n_bins=n_bins,
+                    )
+                else:
+                    raise ValueError(f"未知采样策略: {strategy_name}")
+
+                X_train, y_train, feature_names = concat_sample_cache(
+                    sample_cache, selected_dates
+                )
+                if len(y_train) == 0:
+                    print(
+                        f"{strategy_name} train_days={train_days} repeat={repeat_idx}: 训练集为空，跳过"
+                    )
+                    continue
+
+                model = train_model(
+                    X_train,
+                    y_train,
+                    X_valid,
+                    y_valid,
+                    param_dict,
+                    feature_names,
+                )
+
+                y_test_pred = model.predict(X_test)
+                y_test_prob = model.predict_proba(X_test)
+                y_test_prob = (
+                    y_test_prob.iloc[:, 1].values
+                    if hasattr(y_test_prob, "iloc")
+                    else y_test_prob[:, 1]
+                )
+
+                metrics = evaluate_binary_predictions(y_test, y_test_pred, y_test_prob)
+                selected_stats = stats_df[stats_df["trade_ymd"].isin(selected_dates)]
+
+                records.append(
+                    {
+                        "strategy": strategy_name,
+                        "train_days": int(train_days),
+                        "repeat": int(repeat_idx),
+                        "selected_dates": ",".join(selected_dates),
+                        "train_samples": int(len(y_train)),
+                        "train_positive_rate": float(np.mean(y_train)),
+                        "selected_vol_mean": float(selected_stats[vol_col].mean())
+                        if not selected_stats.empty
+                        else np.nan,
+                        "selected_vol_std": float(selected_stats[vol_col].std())
+                        if len(selected_stats) > 1
+                        else 0.0,
+                        **metrics,
+                    }
+                )
+
+    result_df = pd.DataFrame(records)
+    if result_df.empty:
+        return result_df, pd.DataFrame(), stats_df
+
+    summary_df = (
+        result_df.groupby(["strategy", "train_days"], as_index=False)
+        .agg(
+            accuracy_mean=("accuracy", "mean"),
+            accuracy_std=("accuracy", "std"),
+            f1_mean=("f1", "mean"),
+            f1_std=("f1", "std"),
+            ap_mean=("average_precision", "mean"),
+            ap_std=("average_precision", "std"),
+            pr_auc_mean=("pr_auc", "mean"),
+            pr_auc_std=("pr_auc", "std"),
+            train_samples_mean=("train_samples", "mean"),
+        )
+        .sort_values(["train_days", "strategy"])
+        .reset_index(drop=True)
+    )
+    summary_df = summary_df.fillna(0.0)
+    return result_df, summary_df, stats_df
