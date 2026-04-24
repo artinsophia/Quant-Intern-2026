@@ -20,12 +20,12 @@ class FeatureExtractor:
         self.prices = np.array([
             snap["price_last"]
             for snap in self.snap_slice
-        ])
+        ], dtype=float)
         self.bid_volume = np.array([
-            sum(v for _,v in s["buy_trade"]) for s in snap_slice])
+            sum(v for _,v in s["buy_trade"]) for s in snap_slice], dtype=float)
         self.ask_volume = np.array([
-            sum(v for _,v in s["sell_trade"]) for s in snap_slice])
-        self.trade_count = np.array([s['num_trades'] for s in snap_slice])
+            sum(v for _,v in s["sell_trade"]) for s in snap_slice], dtype=float)
+        self.trade_count = np.array([s['num_trades'] for s in snap_slice], dtype=float)
 
         
 
@@ -46,17 +46,15 @@ class FeatureExtractor:
     @property
     def spread(self) -> float:
         bid, ask = self.best_bid, self.best_ask
-        if np.isnan(bid) or np.isnan(ask):
-            return np.nan
-        return abs(ask - bid) / bid 
+        if not np.isfinite(bid) or not np.isfinite(ask):
+            return 0.0
+        return self._safe_div(abs(ask - bid), bid)
 
     @property
     def volatility(self) -> float:
 
         mean_price = np.mean(self.prices)
-        if mean_price == 0:
-            return 0.0
-        return np.std(self.prices) / mean_price
+        return self._safe_div(np.std(self.prices), mean_price)
 
     @property
     def wamp(self) -> float:
@@ -72,7 +70,7 @@ class FeatureExtractor:
     # trade
     @property
     def alpha_04(self) -> float:
-        if len(self.snap_slice) < self.short_window:
+        if len(self.snap_slice) < 2:
             return 0.0
         num = (
             self.trade_count[-1]
@@ -87,7 +85,10 @@ class FeatureExtractor:
         return self._safe_div(abs(buys - sells) ,buys + sells)
     
     def _safe_div(self, a: float, b: float) -> float:
-        return a / b if abs(b) > self.eps else 0.0
+        if not np.isfinite(a) or not np.isfinite(b) or abs(b) <= self.eps:
+            return 0.0
+        out = a / b
+        return out if np.isfinite(out) else 0.0
 
     
 
@@ -99,30 +100,34 @@ class FeatureExtractor:
 
         short_buy = np.sum(self.bid_volume[-self.short_window:])
         short_sell = np.sum(self.ask_volume[-self.short_window:])
+    
         
         volume = total_buy + total_sell
         volume_short = short_buy + short_sell
 
-        alpha_01 = short_buy / (total_buy + 1e-9)
-        alpha_02 = short_sell / (total_sell + 1e-9)
+        alpha_01 = self._safe_div(short_buy, total_buy)
+        alpha_02 = self._safe_div(short_sell, total_sell)
         alpha_03 = self._safe_div(abs(short_buy - short_sell) , volume_short) 
 
         start_price = self.snap_slice[-self.short_window].get("price_last")
         end_price = self.snap_slice[-1].get("price_last")
         price_diff = self._safe_div(abs(end_price - start_price) , start_price)
 
-        alpha_06 =  self._safe_div(price_diff ,volume_short)
+        alpha_06 =  self._safe_div(price_diff ,self._safe_div(volume - volume_short , volume))
 
         prices_diffs = np.diff(self.prices)
         total_abs_diff = np.sum(np.abs(prices_diffs))
         alpha_07 = self._safe_div(abs(np.sum(prices_diffs)), total_abs_diff )
 
         return {
-            "num_trades": self.last.get("num_trades", 0) - self.snap_slice[-2].get("num_trades", 0),
+            "num_trades": (
+                self.last.get("num_trades", 0) - self.snap_slice[-2].get("num_trades", 0)
+                if len(self.snap_slice) >= 2 else 0
+            ),
             "volatility": self.volatility,
             "spread": self.spread,
             "WAMP": self.wamp,
-            "volume": volume,
+            "volume": self._safe_div(volume_short, volume),
             "alpha_01": alpha_01,
             "alpha_02": alpha_02,
             "alpha_03": alpha_03,

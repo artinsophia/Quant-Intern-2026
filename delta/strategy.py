@@ -33,6 +33,7 @@ class StrategyDemo:
         self.holding_snap = 0
         self.entry_alpha = 0
         self.alpha_exit_count = 0
+        self.close_num = 0
 
     def close(self):
         self.delta_buffer.clear()
@@ -105,16 +106,22 @@ class StrategyDemo:
             if pullback >= dynamic:
                 current_signal = 0
 
-        # 状态平仓
-        if self.position_last != 0:
-            alpha = feat_dict.get("alpha_06")
-            bad_alpha = alpha < self.gamma * self.entry_alpha
-            if bad_alpha:
-                self.alpha_exit_count += 1
-            else:
-                self.alpha_exit_count = max(0, self.alpha_exit_count - 1)
-            if self.alpha_exit_count >= self.exit_confirm_bars:
-                current_signal = 0
+
+
+        
+        # alpha in ,alpha out
+        if self.position_last == 1:
+            if std_delta < -self.close_threshold:
+                self.close_num += 1
+
+        elif self.position_last == -1:
+            if std_delta > self.close_threshold:
+                self.close_num += 1
+        
+        if self.close_num > self.max_delta:
+            current_signal = 0
+
+
         
         # 开仓信号
         if self.position_last == 0:
@@ -131,6 +138,7 @@ class StrategyDemo:
                 self.max_favorable_price = 0
                 self.entry_price = 0
                 self.holding_snap = 0
+                self.close_num = 0
 
             else: # 开仓
                 if (
@@ -145,5 +153,5 @@ class StrategyDemo:
                     else:
                         self.max_favorable_price = buy
 
-                    self.entry_alpha = feat_dict.get("alpha_06")
+                    self.entry_alpha = feat_dict.get("alpha_03")
                         
