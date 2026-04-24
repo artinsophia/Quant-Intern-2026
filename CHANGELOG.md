@@ -1,3 +1,7 @@
+## [2026-4-24]
+### 1. Why did my strategy preform well just with long position period?
+### 2. Maybe Information / Noise is reason
+
 ## [2026-4-22]
 ### 1. Alpha test by IC IR
 ### 1. Alpha in , Alpha out

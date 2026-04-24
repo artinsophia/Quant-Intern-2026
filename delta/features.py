@@ -3,7 +3,7 @@ from typing import List, Dict, Any
 
 
 class FeatureExtractor:
-    def __init__(self, snap_slice: List[Dict[str, Any]], short_window: int = 60):
+    def __init__(self, snap_slice: List[Dict[str, Any]], short_window: int = 300):
         self.eps = 1e-8
         if not snap_slice:
             raise ValueError("snap_slice cannot be empty")
