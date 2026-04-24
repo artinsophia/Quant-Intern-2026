@@ -25,9 +25,21 @@ RECOMMENDED_TRAINING_PRESETS = {
         "strategy": "recent",
         "train_days": 6,
     },
+    "volatility_8d": {
+        "strategy": "volatility_stratified",
+        "train_days": 8,
+        "n_bins": 5,
+        "random_seed": 42,
+    },
     "volatility_12d": {
         "strategy": "volatility_stratified",
         "train_days": 12,
+        "n_bins": 5,
+        "random_seed": 42,
+    },
+    "volatility_16d": {
+        "strategy": "volatility_stratified",
+        "train_days": 16,
         "n_bins": 5,
         "random_seed": 42,
     },
