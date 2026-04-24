@@ -12,6 +12,10 @@ class StrategyDemo:
         if param_dict is None:
             param_dict = {}
         self.__dict__.update(param_dict)
+        self.stop_tighten_start = getattr(self, "stop_tighten_start", 300)
+        self.stop_tighten_step = getattr(self, "stop_tighten_step", 150)
+        self.stop_tighten_factor = getattr(self, "stop_tighten_factor", 0.85)
+        self.stop_tighten_floor = getattr(self, "stop_tighten_floor", 0.5)
 
         self.position_last = 0
 
@@ -90,10 +94,22 @@ class StrategyDemo:
         rolling_std = np.std(self.price_buffer)
         self.trailing_stop = rolling_std * self.atr_multiplier
 
-        dynamic = self.trailing_stop
         current_signal = self.prev_signal
 
-        # 回撤平仓或反向信号平仓
+        # 1 秒级 snapshot，持仓计数可直接视为秒数
+        if self.position_last != 0:
+            self.holding_snap += 1
+
+        dynamic = self.trailing_stop
+        if self.position_last != 0 and self.holding_snap > self.stop_tighten_start:
+            tighten_levels = (self.holding_snap - self.stop_tighten_start) // self.stop_tighten_step + 1
+            tighten_ratio = max(
+                self.stop_tighten_floor,
+                self.stop_tighten_factor ** tighten_levels,
+            )
+            dynamic *= tighten_ratio
+
+        # 回撤平仓，持仓越久止损越紧
         if self.position_last == 1:
             self.max_favorable_price = max(self.max_favorable_price, sell)
             pullback = self.max_favorable_price - sell
@@ -105,21 +121,6 @@ class StrategyDemo:
             pullback = buy - self.max_favorable_price
             if pullback >= dynamic:
                 current_signal = 0
-
-
-
-        
-        # alpha in ,alpha out
-        if self.position_last == 1:
-            if std_delta < -self.close_threshold:
-                self.close_num += 1
-
-        elif self.position_last == -1:
-            if std_delta > self.close_threshold:
-                self.close_num += 1
-        
-        if self.close_num > self.max_delta:
-            current_signal = 0
 
 
         
@@ -138,7 +139,6 @@ class StrategyDemo:
                 self.max_favorable_price = 0
                 self.entry_price = 0
                 self.holding_snap = 0
-                self.close_num = 0
 
             else: # 开仓
                 if (
@@ -148,6 +148,7 @@ class StrategyDemo:
                     self.position_last = current_signal
                     self.prev_signal = current_signal
                     self.entry_price = price
+                    self.holding_snap = 0
                     if current_signal == 1:
                         self.max_favorable_price = sell
                     else:
