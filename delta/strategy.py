@@ -133,7 +133,7 @@ class StrategyDemo:
         
         # 实际行为
         if current_signal != self.prev_signal:
-            if current_signal == 0: # 平仓
+            if self.position_last != 0:
                 self.position_last = 0
                 self.prev_signal = 0
                 self.max_favorable_price = 0
@@ -154,5 +154,4 @@ class StrategyDemo:
                     else:
                         self.max_favorable_price = buy
 
-                    self.entry_alpha = feat_dict.get("alpha_03")
                         
