@@ -150,6 +150,7 @@ def evaluate_model(model, X_test, y_test, show_plots=False):
         precision, recall, thresholds = precision_recall_curve(y_test, y_pred_proba)
         pr_auc = auc(recall, precision)
         avg_precision = average_precision_score(y_test, y_pred_proba)
+        positive_rate = float(np.mean(y_test))
 
         print(f"\nPR曲线AUC: {pr_auc:.4f}")
         print(f"平均精度 (AP): {avg_precision:.4f}")
@@ -188,7 +189,13 @@ def evaluate_model(model, X_test, y_test, show_plots=False):
                 linewidth=2,
                 label=f"PR curve (AUC = {pr_auc:.3f})",
             )
-            ax1.plot([0, 1], [1, 0], "k--", alpha=0.5, label="Random")
+            ax1.axhline(
+                y=positive_rate,
+                color="k",
+                linestyle="--",
+                alpha=0.5,
+                label=f"Random baseline ({positive_rate:.3f})",
+            )
             ax1.set_xlabel("Recall")
             ax1.set_ylabel("Precision")
             ax1.set_title("Precision-Recall Curve")
