@@ -1,3 +1,6 @@
+## [2026-4-27](half day)
+### 1. Research of 518880 about 2-tick spread
+
 ## [2026-4-24]
 ### 1. Why did my strategy preform well just with long position period?
 ### 2. Maybe Information / Noise is reason

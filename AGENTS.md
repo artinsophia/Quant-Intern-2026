@@ -2,6 +2,7 @@
 
 ## Project Overview
 
+
 `tactics_demo` 是一个量化交易策略研究与回测仓库，面向中国场内 ETF / 货币类品种的 1 秒级 snapshot 数据。仓库同时包含：
 
 - 研究型 notebook
@@ -194,6 +195,10 @@ class StrategyDemo:
 4. 训练模型
 5. 评估并保存模型
 6. 构造 `StrategyDemo`
+
+## Python Environment
+
+`/opt/conda/bin/python`
 
 ## Working Conventions For Agents
 
