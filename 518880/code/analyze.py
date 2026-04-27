@@ -12,14 +12,16 @@ import numpy as np
 import pandas as pd
 
 
-BASE_DEMO_PATH = Path("/home/jovyan/base_demo")
-DATA_DIR = Path(__file__).resolve().parent / "data"
+ROOT_DIR = Path(__file__).resolve().parents[1]
+DATA_DIR = ROOT_DIR / "data"
 INSTRUMENT_ID = "518880"
 START_YMD = "20251201"
 END_YMD = "20260425"
 
-if str(BASE_DEMO_PATH) not in sys.path:
-    sys.path.append(str(BASE_DEMO_PATH))
+BASE_CANDIDATES = [Path("/home/jovyan/work/base_demo"), Path("/home/jovyan/base_demo")]
+for base_path in BASE_CANDIDATES:
+    if base_path.exists() and str(base_path) not in sys.path:
+        sys.path.append(str(base_path))
 
 import base_tool  # type: ignore
 
