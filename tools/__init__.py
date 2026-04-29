@@ -7,6 +7,7 @@ from .result_saver import (
     delete_backtest_results_by_date,
     delete_backtest_results_by_instrument_date,
 )
+from .plot_return_distribution import plot_return_distribution
 
 __all__ = [
     "backtest_multi_days",
@@ -17,4 +18,5 @@ __all__ = [
     "list_backtest_results",
     "delete_backtest_results_by_date",
     "delete_backtest_results_by_instrument_date",
+    "plot_return_distribution",
 ]

@@ -2,9 +2,9 @@ __pycache__
 
 .ipynb_checkpoints
 .png
-.csv
+*.csv
 
 backtest_result/
 delay_result/
 
-518880/data
+sh518880/data

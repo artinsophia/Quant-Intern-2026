@@ -47,18 +47,22 @@ class TrainValidTest:
         n = len(self.snap_list)
         stride = getattr(self, "stride", 1)
 
-        for i in range(self.x_window, n - self.y_window, stride):
+        # 决策时点定义为“看到第 i 秒结束后的 snapshot 之后”。
+        # 因此：
+        # 1. 特征与 trigger 都可以使用 snap[i]
+        # 2. label 必须从 snap[i + 1] 开始，避免把当前秒当作可交易未来
+        for i in range(self.x_window - 1, n - self.y_window, stride):
             flag, category = self.trigger(i)
             if not flag:
                 continue
 
             x_dict = self.create_feature(
-                self.snap_list[i - self.x_window : i], self.short_window
+                self.snap_list[i - self.x_window + 1 : i + 1], self.short_window
             )
 
-            # 使用更大的窗口计算波动率（仿照strategy.py中的方式）
-            start_idx = max(0, i - self.vol_window)
-            price_window = self.prices[start_idx:i]
+            # 波动率窗口与特征时点对齐，包含当前秒末 snapshot。
+            start_idx = max(0, i - self.vol_window + 1)
+            price_window = self.prices[start_idx : i + 1]
             if len(price_window) > 0:
                 mean_price = np.mean(price_window)
                 if mean_price != 0:
@@ -68,7 +72,7 @@ class TrainValidTest:
             else:
                 volatility = 0.0
             y_val = self.create_y(
-                self.snap_list[i : i + self.y_window],
+                self.snap_list[i + 1 : i + 1 + self.y_window],
                 volatility,
                 self.k_up,
                 self.k_down,
@@ -86,7 +90,8 @@ class TrainValidTest:
         return feature_records, labels
 
     def trigger(self, time):
-        std_delta = latest_zscore(self.delta[time - self.short_window : time])
+        start_idx = max(0, time - self.short_window + 1)
+        std_delta = latest_zscore(self.delta[start_idx : time + 1])
 
         if std_delta > self.open_threshold:
             return True, 1

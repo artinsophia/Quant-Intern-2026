@@ -183,3 +183,104 @@ class StrategyDemo:
                         self.max_favorable_price = buy
 
                         
+
+
+# 各个标的需要全样本回测的参数
+strategy_params = {
+    '511090': 
+    [
+        {
+        'instrument_id': '511090',
+        'name': f'delta_v1',
+        'stride': 1,
+
+        'short_window': 300,
+        'long_window': 600,
+        'y_window': 600,
+        'x_window': 600,
+
+        'open_threshold': 3,  
+        'open_confidence': 0,  
+
+        'standard_num': 1000,
+
+        'atr_multiplier': 4,
+        'vol_window': 600,
+
+        'adverse_cusum_threshold': 10,
+        'adverse_cusum_drift': 3,
+
+        'k_up': 3,
+        'k_down': 3,
+        "stop_tighten_start": 6000,
+        'stop_tighten_step' : 60,
+        'stop_tighten_factor': 0.9,
+        'stop_tighten_floor': 0.75,
+        'model_path': '/home/jovyan/work/model/delta_511090_volatility_16d_600_3.pkl'
+        },
+        {
+        'instrument_id': '511090',
+        'name': f'delta_v1',
+        'stride': 1,
+
+        'short_window': 300,
+        'long_window': 600,
+        'y_window': 600,
+        'x_window': 600,
+
+        'open_threshold': 3,  
+        'open_confidence': 0,  
+
+        'standard_num': 1000,
+
+        'atr_multiplier': 4,
+        'vol_window': 600,
+
+        'adverse_cusum_threshold': 7,
+        'adverse_cusum_drift': 3,
+
+        'k_up': 3,
+        'k_down': 3,
+        "stop_tighten_start": 6000,
+        'stop_tighten_step' : 60,
+        'stop_tighten_factor': 0.9,
+        'stop_tighten_floor': 0.75,
+        'model_path': '/home/jovyan/work/model/delta_511090_volatility_16d_600_3.pkl'
+        },
+
+        {
+        'instrument_id': '511090',
+        'name': f'delta_v1',
+        'stride': 1,
+
+        'short_window': 300,
+        'long_window': 600,
+        'y_window': 600,
+        'x_window': 600,
+
+        'open_threshold': 3,  
+        'open_confidence': 0,  
+
+        'standard_num': 1000,
+
+        'atr_multiplier': 4,
+        'vol_window': 600,
+
+        'adverse_cusum_threshold': 5,
+        'adverse_cusum_drift': 3,
+
+        'k_up': 3,
+        'k_down': 3,
+        "stop_tighten_start": 6000,
+        'stop_tighten_step' : 60,
+        'stop_tighten_factor': 0.9,
+        'stop_tighten_floor': 0.75,
+        'model_path': '/home/jovyan/work/model/delta_511090_volatility_16d_600_3.pkl'
+        },
+
+    ],
+}
+
+
+if __name__ == '__main__':
+    pass

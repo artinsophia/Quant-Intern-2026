@@ -306,6 +306,35 @@ def split_dates(trade_dates, train_days=35, valid_days=9, test_days=10):
     return train_dates, valid_dates, test_dates
 
 
+def _print_date_split_summary(name, dates):
+    """统一打印日期切分结果。"""
+    if dates:
+        print(f"{name}: {dates[0]} ~ {dates[-1]} ({len(dates)}天)")
+    else:
+        print(f"{name}: 无")
+
+
+def validate_date_splits(train_dates, valid_dates, test_dates, embargo_dates=None):
+    """校验训练/验证/测试/embargo 日期是否互斥。"""
+    date_groups = {
+        "训练集": set(train_dates),
+        "验证集": set(valid_dates),
+        "测试集": set(test_dates),
+    }
+    if embargo_dates is not None:
+        date_groups["Embargo"] = set(embargo_dates)
+
+    group_names = list(date_groups)
+    for idx, left_name in enumerate(group_names):
+        left_dates = date_groups[left_name]
+        for right_name in group_names[idx + 1 :]:
+            overlap = sorted(left_dates & date_groups[right_name])
+            if overlap:
+                raise ValueError(
+                    f"{left_name} 与 {right_name} 存在重叠日期: {overlap}"
+                )
+
+
 def split_dates_by_range(
     trade_dates,
     train_start=None,
@@ -349,23 +378,52 @@ def split_dates_by_range(
     valid_dates = filter_dates_by_range(trade_dates, valid_start, valid_end)
     test_dates = filter_dates_by_range(trade_dates, test_start, test_end)
 
-    # 打印结果
-    if train_dates:
-        print(f"训练集: {train_dates[0]} ~ {train_dates[-1]} ({len(train_dates)}天)")
-    else:
-        print("训练集: 无")
-
-    if valid_dates:
-        print(f"验证集: {valid_dates[0]} ~ {valid_dates[-1]} ({len(valid_dates)}天)")
-    else:
-        print("验证集: 无")
-
-    if test_dates:
-        print(f"测试集: {test_dates[0]} ~ {test_dates[-1]} ({len(test_dates)}天)")
-    else:
-        print("测试集: 无")
+    validate_date_splits(train_dates, valid_dates, test_dates)
+    _print_date_split_summary("训练集", train_dates)
+    _print_date_split_summary("验证集", valid_dates)
+    _print_date_split_summary("测试集", test_dates)
 
     return train_dates, valid_dates, test_dates
+
+
+def split_dates_with_embargo(
+    trade_dates,
+    train_start,
+    train_end,
+    valid_start,
+    valid_end,
+    test_start,
+    test_end,
+    embargo_start=None,
+    embargo_end=None,
+):
+    """按时间顺序切分训练/验证/测试，并显式保留 embargo 区间。"""
+
+    def filter_dates_by_range(date_list, start_date, end_date):
+        if start_date is None and end_date is None:
+            return []
+
+        filtered = []
+        for date in date_list:
+            if start_date and date < start_date:
+                continue
+            if end_date and date > end_date:
+                continue
+            filtered.append(date)
+        return filtered
+
+    train_dates = filter_dates_by_range(trade_dates, train_start, train_end)
+    valid_dates = filter_dates_by_range(trade_dates, valid_start, valid_end)
+    test_dates = filter_dates_by_range(trade_dates, test_start, test_end)
+    embargo_dates = filter_dates_by_range(trade_dates, embargo_start, embargo_end)
+
+    validate_date_splits(train_dates, valid_dates, test_dates, embargo_dates)
+    _print_date_split_summary("训练集", train_dates)
+    _print_date_split_summary("验证集", valid_dates)
+    _print_date_split_summary("Embargo", embargo_dates)
+    _print_date_split_summary("测试集", test_dates)
+
+    return train_dates, valid_dates, test_dates, embargo_dates
 
 
 def split_dates_randomly(

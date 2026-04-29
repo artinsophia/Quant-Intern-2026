@@ -1,3 +1,6 @@
+## [2026-4-28]
+### 1. No price - price cause original overfitting
+
 ## [2026-4-27](half day)
 ### 1. Research of 518880 about 2-tick spread
 

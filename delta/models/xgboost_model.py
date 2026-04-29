@@ -24,7 +24,7 @@ class XGBoostModel(BaseModel):
 
         # 默认参数
         default_params = {
-            "n_estimators": 800,
+            "n_estimators": 1000,
             "max_depth": 3,
             "learning_rate": 0.01,
             "subsample": 0.8,
